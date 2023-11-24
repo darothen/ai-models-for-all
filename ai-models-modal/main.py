@@ -1,3 +1,5 @@
+import os
+
 from ai_models import model
 
 from . import config
@@ -6,12 +8,17 @@ from .app import stub
 logger = config.get_logger(__name__)
 
 
-@stub.function()
+@stub.function(
+    image=stub.image,
+    secret=config.ENV_SECRETS,
+)
 def check_assets():
     assets = config.AI_MODEL_ASSETS_DIR.glob("**/*")
     logger.info(f"Found {len(list(assets))} assets:")
     for i, asset in enumerate(assets, 1):
         logger.info(f"({i}) {asset}")
+    logger.info(f"CDS API URL: {os.environ['CDSAPI_URL']}")
+    logger.info(f"CDS API Key: {os.environ['CDSAPI_KEY']}")
 
 
 @stub.function(

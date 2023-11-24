@@ -1,3 +1,4 @@
 ai-models
 ai-models-panguweather
 modal
+python-dotenv
