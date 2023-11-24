@@ -13,8 +13,8 @@ logger = config.get_logger(__name__)
     secret=config.ENV_SECRETS,
 )
 def check_assets():
-    assets = config.AI_MODEL_ASSETS_DIR.glob("**/*")
-    logger.info(f"Found {len(list(assets))} assets:")
+    assets = list(config.AI_MODEL_ASSETS_DIR.glob("**/*"))
+    logger.info(f"Found {len(assets)} assets:")
     for i, asset in enumerate(assets, 1):
         logger.info(f"({i}) {asset}")
     logger.info(f"CDS API URL: {os.environ['CDSAPI_URL']}")
