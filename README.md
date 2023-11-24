@@ -17,3 +17,13 @@ This repository is intended to provide a template that users can adapt to start 
    ```shell
    $ modal run ai-models-modal.main
    ```
+
+## Configuring `cdsapi`
+
+We need access to the [Copernicus Data Store](https://cds.climate.copernicus.eu/)
+to retrieve historical ERA-5 data to use when initializing our forecasts. The
+easiest way to set this up would be to have the user retrieve their credentials
+from [here](https://cds.climate.copernicus.eu/api-how-to) and save them to a
+local file, `~/.cdsapirc`. But that's a tad inconvenient to build into our
+application image. Instead, we can just set the environment variables
+**CDSAPI_URL** and **CDSAPI_KEY**.

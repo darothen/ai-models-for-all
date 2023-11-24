@@ -20,6 +20,14 @@ AI_MODEL_ASSETS_DIR = VOLUME_ROOT / "assets"
 DEFAULT_GPU_CONFIG = modal.gpu.A100(memory=40)
 
 
+# Read secrets locally from a ".env" file; this avoids the need to have users
+# manually set them up in Modal, with the one downside that we do have to put
+# all secrets into the same file (but we don't plan to have many).
+# NOTE: Modal will try to read ".env" from the working directory, not from our
+# module directory. So keep the ".env" in the repo root.
+ENV_SECRETS = modal.Secret.from_dotenv()
+
+
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """Set up a default logger with configs for working within a modal app."""
     logger = logging.getLogger(name)
