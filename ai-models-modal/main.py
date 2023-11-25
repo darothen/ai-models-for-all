@@ -1,3 +1,4 @@
+import datetime
 import os
 import pathlib
 
@@ -6,13 +7,14 @@ from ai_models import model
 from . import config
 from .app import stub
 
-logger = config.get_logger(__name__, set_all=True)
+config.set_logger_basic_config()
+logger = config.get_logger(__name__, add_handler=False)
 
 
 @stub.function(
     image=stub.image,
     secret=config.ENV_SECRETS,
-    gpu="any",
+    gpu="T4",
     timeout=60,
 )
 def check_assets():
@@ -50,19 +52,23 @@ def check_assets():
     image=stub.image,
     secret=config.ENV_SECRETS,
     # volumes={VOLUME_ROOT: stub.volume},
-    # gpu=config.DEFAULT_GPU_CONFIG,
-    gpu="a10g",
+    gpu=config.DEFAULT_GPU_CONFIG,
     timeout=600,
 )
-def generate_forecast(model_name: str = config.SUPPORTED_AI_MODELS[0]):
+def generate_forecast(
+    model_name: str = config.SUPPORTED_AI_MODELS[0],
+    init_datetime: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+):
     """Generate a forecast using the specified model."""
-    config.set_logger_basic_config()
-    # config.set_logger(["ai-models", f"ai-models-{model_name}"])
     logger.info(f"Attempting to initialize model {model_name}...")
+    logger.info(f"   Run initialization datetime: {init_datetime}")
+    out_pth = config.make_output_path(model_name, init_datetime)
+    out_pth.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"   Model output path: {str(out_pth)}")
     init_model = model.load_model(
         # Necessary arguments to instantiate a Model object
         input="cds",
-        output="none",
+        output="file",
         download_assets=False,
         name=model_name,
         # Additional arguments. These are generally set as object attributes
@@ -70,9 +76,11 @@ def generate_forecast(model_name: str = config.SUPPORTED_AI_MODELS[0]):
         # they're not clearly declared in the class documentation so there is
         # a bit of trial and error involved in figuring out what's needed.
         assets=config.AI_MODEL_ASSETS_DIR,
-        date=20230701,
-        time=0000,
+        date=int(init_datetime.strftime("%Y%m%d")),
+        time=init_datetime.hour,
         lead_time=12,
+        path=str(out_pth),
+        metadata={},  # Read by the output data handler
         # Unused arguments that are required by Model class methods to work.
         model_args={},
         assets_sub_directory=None,
@@ -83,6 +91,13 @@ def generate_forecast(model_name: str = config.SUPPORTED_AI_MODELS[0]):
     logger.info("Generating forecast...")
     init_model.run()
     logger.info("Done!")
+
+    # Double check that we successfully produced a model output file.
+    logger.info(f"Checking output file {str(out_pth)}...")
+    if out_pth.exists():
+        logger.info("   Success!")
+    else:
+        logger.info("   Did not find expected output file.")
 
 
 @stub.local_entrypoint()
