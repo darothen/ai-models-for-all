@@ -92,7 +92,20 @@ class AIModel:
     ) -> None:
         self.model_name = model_name
         self.model_init = model_init
-        self.lead_time = lead_time
+
+        # Cap forecast lead time to 10 days; the models may or may not work longer than
+        # this, but this is an unnecessary foot-gun. A savvy user can disable this check
+        # in-code.
+        if lead_time > config.MAX_FCST_LEAD_TIME:
+            logger.warning(
+                f"Requested forecast lead time ({lead_time}) exceeds max; setting"
+                f" to {config.MAX_FCST_LEAD_TIME}. You can manually set a higher limit in"
+                "ai-models-modal/config.py::MAX_FCST_LEAD_TIME."
+            )
+            self.lead_time = config.MAX_FCST_LEAD_TIME
+        else:
+            self.lead_time = lead_time
+
         self.out_pth = config.make_output_path(model_name, model_init)
         self.out_pth.parent.mkdir(parents=True, exist_ok=True)
 
@@ -115,8 +128,6 @@ class AIModel:
             assets=config.AI_MODEL_ASSETS_DIR,
             date=int(self.model_init.strftime("%Y%m%d")),
             time=self.model_init.hour,
-            # TODO: allow user to specify desired forecast lead time, with limited
-            # validation (e.g. < 10 days)
             lead_time=self.lead_time,
             path=str(self.out_pth),
             metadata={},  # Read by the output data handler

@@ -11,6 +11,8 @@ SUPPORTED_AI_MODELS = [
     "panguweather",
 ]
 
+MAX_FCST_LEAD_TIME = 24 * 10  # 10 days
+
 # Set up paths that can be mapped to our Volume in order to persist model
 # assets after they've been downloaded once.
 VOLUME_ROOT = pathlib.Path("/vol/ai-models")
