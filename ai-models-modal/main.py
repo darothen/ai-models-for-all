@@ -147,10 +147,11 @@ class AIModel:
         self.init_model.run()
 
 
-# TODO: This could really be its own function; it can take a few minutes to
-# run this routine, and there's absolutely no reason why that should be
-# burned on an expensive GPU machine. For Panguweather this took shy of 5
-# minutes to run, which costs $0.31 on an A100.
+# This routine is made available as a stand-alone function, and it's up to the user
+# to ensure that the path config.AI_MODEL_ASSETS_DIR exists and is mapped to the storage
+# volume where assets should be cached. We provide this as a stand-alone function so
+# that it can be called a cheaper, non-GPU instance and avoid wasting cycles outside
+# of model inference on such a more expensive machine.
 def _maybe_download_assets(model_name: str) -> None:
     from multiurl import download
 
