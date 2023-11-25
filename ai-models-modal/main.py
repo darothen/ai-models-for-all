@@ -184,10 +184,6 @@ def generate_forecast(
         dest_blob_name,
     )
     logger.info("Checking that upload was successful...")
-    # NOTE: We can't use client.get_bucket().get_blob() here because we haven't
-    # asked for a service account with sufficient permissions to manipulate
-    # individual listings like this. Instead, we will just list all the blobs
-    # in the target destination and check if we see the one we just uploaded.
     target_blob = gcs_handler.client.bucket(bucket_name).blob(dest_blob_name)
     if target_blob.exists():
         logger.info("   Success!")
