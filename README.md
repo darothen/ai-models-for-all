@@ -154,3 +154,15 @@ from [here](https://cds.climate.copernicus.eu/api-how-to) and save them to a
 local file, `~/.cdsapirc`. But that's a tad inconvenient to build into our
 application image. Instead, we can just set the environment variables
 **CDSAPI_URL** and **CDSAPI_KEY**.
+
+## Usage / Restrictions
+
+If you use this package, please give credit to [Daniel Rothenberg](https://github.com/darothen)
+(<daniel@danielrothenberg.com> or [@danrothenberg](https://twitter.com/danrothenberg)),
+as well as the increidble team at [ECMWF Lab](https://github.com/ecmwf-lab) and the
+publishers of any forecast model you use.
+
+**NOTE THAT EACH MODEL PROVIDED BY AI-MODELS HAS ITS OWN LICENSE AND RESTRICTION**.
+
+This package may *only* be used in a manner compliant with the licenses and terms of all
+the libraries, model weights, and services upon which it is built.
