@@ -2,7 +2,73 @@
 
 This repository is intended to provide a template that users can adapt to start generating their own weather forecasts leveraging the "pure AI" NWP systems recently developed and open-sourced by Huawei, Nvidia, and Google DeepMind. We boot-strap on top of the fantastic [`ai-models`](https://github.com/ecmwf-lab/ai-models) repository published by ECMWF Labs, but implement our own wrappers to help end-users quickly get started generating their own forecasts.
 
-## Setting up Google Cloud
+This is a **preview release** of this tool; it has a few limitations:
+
+- We only provide one storage adapter, for Google Cloud Storage (we can expand this
+  to S3, Azure, or other providers as there is interest).
+- We only enable access to the CDS-based archive of ERA-5 data to initialize the
+  models (access via MARS will be forthcoming, but since most users will not have
+  these credentials, it wasn't a high priority).
+- Only PanguWeather is currently supported; once the basic kinks of this tool are worked
+  out with test users, we can quickly add FourCastNet and GraphCast.
+- A single initialization date and forecast lead time is hard-coded for testing purposes.
+  These will ultimately be configurable via the command line so you can run an arbitrary
+  forecast.
+- The current application only runs on [Modal](https://www.modal.com); in the future, it
+  would be great to port this to other serverless platforms.
+
+Furthermore, we significantly rely on the fantastic [`ecmwf-labs/ai-models`](https://github.com/ecmwf-lab/ai-models)
+package to automate a lot of the traditional MLOps that are necessary to run this type
+of product in a semi-production context. `ai-models` handles acquiring data to use as
+inputs for model inference (read: generate a forecast from initial conditions) by
+providing an as-needed interface with the Copernicus Data Store and MARS API, it
+provides pre-trained model weights shipped via ONNX, it implements a simple interface
+for performing model inference, and it outputs a well-formed (albeit in GRIB) output
+file that can be fed into downstream workflows (e.g. model visualization). We don't
+anticipate replacing this package, but we may contribute improvements and features
+upstream (e.g. a high priority is writing a NetCDF output adapter that writes timesliced
+files per model step, with metadata following CF conventions) as they mature here.
+
+**Your feedback to <daniel@danielrothenberg.com> or [@danrothenberg](https://twitter.com/danrothenberg) would be greatly appreciated!**
+
+## Quick Start
+
+1. Set up accounts (if you don't already have them) for:
+   1. [Google Cloud](https://cloud.google.com)
+   2. [Modal](https://www.modal.com)
+   3. [Copernicus Data Store](https://cds.climate.copernicus.eu/)
+2. Complete the `.env` file with your CDS API credentials, GCS service account keys, and
+   a bucket name where model outputs will be uploaded. **You should create this bucket
+   before running the application!**
+3. From a terminal, login with the `modal-client`
+4. Navigate to the repository on-disk and execute the command,
+   ```shell
+   $ modal run ai-models-modal.main
+   ```
+   The first time you run this, it will take a few minutes to build an image and set up
+   assets on Modal. Then, the model will run remotely on Modal infrastructure, and you
+   can monitor its progress via the logs streamed to your terminal.
+5. Download the model output from Google Cloud Storage at **gs://{GCS_BUCKET_NAME}** as
+   provided via the `.env` file.
+
+## Getting Started
+
+To use this demo, you'll need accounts set up on [Google Cloud](https://cloud.google.com),
+[Modal](https://www.modal.com), and the Copernicus Data Store](<https://cds.climate.copernicus.eu/>). 
+Don't worry - even though you do need to supply them ith credit card information, this
+demo should cost virtually nothing to run; we'll use very limited storage on Google
+Cloud Storage for forecast model outputs that we generate (a few cents per month if you
+become a prolific user), and Modal offers new individual users a [startup package](https://modal.com/signup)
+which includes $30/month of free compute - so you could run this application for about 8
+hours straight before you'd incur any fees (A100's cost about $3.73 on Modal at the time
+of writing).
+
+If you're very new to cloud computing, the following sections will help walk you through
+the handful of steps necessary to get started with this demo. Experienced users can
+quickly skim through to see how they need to modify the provided `.env` to set up the
+necessary credentials for the application to work.
+
+### Setting up Google Cloud
 
 The current version of this library ships with a single storage handler - a tool
 to upload to Google Cloud Storage. Without an external storage mechanism, there
@@ -14,7 +80,7 @@ There are two main steps that you need to take here. We assume you already have
 an account on Google Cloud Platform (it should be trivial to setup from
 http://console.cloud.google.com).
 
-### 1) Create a bucket on Google Cloud Storage
+#### 1) Create a bucket on Google Cloud Storage
 
 Navigate to your project's [Cloud Storage](https://console.cloud.google.com/storage/browser)
 control panel. From here, you should see a listing of buckets that you own.
@@ -31,7 +97,7 @@ Finally, navigate to the `.env` file in this repo; set the **GCS_BUCKET_NAME**
 variable to the bucket name you chose previously. You do not need quotes around
 the bucket name.
 
-### 2) Create a Service Account for Modal
+#### 2) Create a Service Account
 
 We need a mechanism so that your app running on Modal can authenticate with
 Google Cloud in order to use its resources and APIs. To do this, we're going to
@@ -79,23 +145,7 @@ reading in the JSON file you saved, serializing to a string, and outputting. In
 a pinch, you can copy/paste the full JSON data into a site like [this one](https://jsonformatter.org/json-stringify-online)
 and use the resulting string. Copy that output string into your `.env`.
 
-## Quick-Start Guide - Modal
-
-1. Set up your preferred python environment and install the `modal` client package:
-   ```shell 
-   $ pip install modal
-   ```
-2. Set up an account and credentials [modal](https://modal.com/). Be sure that you've set up your API token correctly, see their ["Getting Started"](https://modal.com/home) page for instructions.
-3. Build and deploy an image of the `ai-models-modal` application; from the top-level directory, execute
-   ```shell
-   $ modal deploy ai-models-modal.main 
-   ```
-4. Run the test application, which should log the filenames of assets pre-cached with the image:
-   ```shell
-   $ modal run ai-models-modal.main
-   ```
-
-## Configuring `cdsapi`
+### Configuring `cdsapi`
 
 We need access to the [Copernicus Data Store](https://cds.climate.copernicus.eu/)
 to retrieve historical ERA-5 data to use when initializing our forecasts. The
