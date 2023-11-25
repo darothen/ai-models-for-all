@@ -81,5 +81,7 @@ inference_image = (
     .run_commands("touch /root/.cdsapirc")
 )
 
+# Set up a storage volume for sharing model outputs between processes.
+volume = modal.NetworkFileSystem.persisted("ai-models-cache")
 
 stub = modal.Stub(name="ai-models-for-all", image=inference_image)

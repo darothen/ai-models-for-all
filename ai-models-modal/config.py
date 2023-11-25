@@ -38,7 +38,7 @@ ENV_SECRETS = modal.Secret.from_dotenv()
 
 def make_output_path(model_name: str, init_datetime: datetime.datetime) -> pathlib.Path:
     """Create a full path for writing a model output GRIB file."""
-    filename = f"{model_name}{init_datetime:%Y%m%d%H%M}.grib"
+    filename = f"{model_name}.{init_datetime:%Y%m%d%H%M}.grib"
     return OUTPUT_ROOT_DIR / filename
 
 

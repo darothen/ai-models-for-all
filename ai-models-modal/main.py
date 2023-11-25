@@ -5,7 +5,7 @@ import pathlib
 from ai_models import model
 
 from . import config
-from .app import stub
+from .app import stub, volume
 
 config.set_logger_basic_config()
 logger = config.get_logger(__name__, add_handler=False)
@@ -14,8 +14,10 @@ logger = config.get_logger(__name__, add_handler=False)
 @stub.function(
     image=stub.image,
     secret=config.ENV_SECRETS,
+    network_file_systems={str(config.CACHE_DIR): volume},
     gpu="T4",
     timeout=60,
+    allow_cross_region_volumes=True,
 )
 def check_assets():
     import cdsapi
@@ -47,11 +49,15 @@ def check_assets():
     )  # output: ['CUDAExecutionProvider', 'CPUExecutionProvider']
     logger.info(f"onnxruntime device: {ort.get_device()}")  # output: GPU
 
+    logger.info(f"Checking contents on network file system at {config.CACHE_DIR}...")
+    for i, asset in enumerate(config.CACHE_DIR.glob("**/*"), 1):
+        logger.info(f"({i}) {asset}")
+
 
 @stub.function(
     image=stub.image,
     secret=config.ENV_SECRETS,
-    # volumes={VOLUME_ROOT: stub.volume},
+    network_file_systems={str(config.CACHE_DIR): volume},
     gpu=config.DEFAULT_GPU_CONFIG,
     timeout=600,
 )
@@ -103,4 +109,4 @@ def generate_forecast(
 @stub.local_entrypoint()
 def main():
     check_assets.remote()
-    generate_forecast.remote()
+    # generate_forecast.remote()
