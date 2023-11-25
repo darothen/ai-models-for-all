@@ -4,9 +4,10 @@ import os
 import pathlib
 
 import modal
+import ujson
 from ai_models import model
 
-from . import config
+from . import config, gcs
 from .app import stub, volume
 
 config.set_logger_basic_config()
@@ -40,6 +41,10 @@ def check_assets():
     logger.info(f"Test .cdsapirc: {test_cdsapirc} exists = {test_cdsapirc.exists()}")
 
     logger.info("Trying to import eccodes...")
+    # NOTE: Right now, this will throw a UserWarning: "libexpat.so.1: cannot
+    # open shared object file: No such file or directory." This is likely due to
+    # something not being built correctly by mamba in the application image, but
+    # it doesn't impact functionality at the moment.
     import eccodes
 
     logger.info("Getting GPU information...")
@@ -53,6 +58,20 @@ def check_assets():
     logger.info(f"Checking contents on network file system at {config.CACHE_DIR}...")
     for i, asset in enumerate(config.CACHE_DIR.glob("**/*"), 1):
         logger.info(f"({i}) {asset}")
+
+    logger.info("Checking for access to GCS...")
+    import ujson
+
+    service_account_info: dict = ujson.loads(os.environ["GCS_SERVICE_ACCOUNT_INFO"])
+    gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
+        service_account_info
+    )
+    bucket_name = os.environ["GCS_BUCKET_NAME"]
+    logger.info(f"Listing blobs in GCS bucket gs://{bucket_name}")
+    blobs = list(gcs_handler.client.list_blobs(bucket_name))
+    logger.info(f"Found {len(blobs)} blobs:")
+    for i, blob in enumerate(blobs, 1):
+        logger.info(f"({i}) {blob.name}")
 
 
 @stub.cls(
@@ -119,7 +138,7 @@ def generate_forecast(
     ai_model = AIModel(model_name, init_datetime)
 
     logger.info("Generating forecast...")
-    ai_model.run_model.remote()
+    # ai_model.run_model.remote()
     logger.info("Done!")
 
     # Double check that we successfully produced a model output file.
@@ -128,6 +147,45 @@ def generate_forecast(
         logger.info("   Success!")
     else:
         logger.info("   Did not find expected output file.")
+
+    # Try to upload to Google Cloud Storage
+    bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
+    try:
+        service_account_info: dict = ujson.loads(
+            os.environ.get("GCS_SERVICE_ACCOUNT_INFO", "")
+        )
+    except ujson.JSONDecodeError:
+        logger.warning("Could not parse 'GCS_SERVICE_ACCOUNT_INFO'")
+        service_account_info = {}
+
+    if (bucket_name is None) or (not service_account_info):
+        logger.warning("Not able to access to Google Cloud Storage; skipping upload.")
+        return
+
+    logger.info("Attempting to upload to GCS bucket gs://{bucket_name}...")
+    gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
+        service_account_info
+    )
+    dest_blob_name = ai_model.out_pth.name
+    logger.info(f"Uploading to gs://{bucket_name}/{dest_blob_name}")
+    gcs_handler.upload_blob(
+        bucket_name,
+        ai_model.out_pth,
+        dest_blob_name,
+    )
+    logger.info(f"Checking that upload was successful...")
+    # NOTE: We can't use client.get_bucket().get_blob() here because we haven't
+    # asked for a service account with sufficient permissions to manipulate
+    # individual listings like this. Instead, we will just list all the blobs
+    # in the target destination and check if we see the one we just uploaded.
+    found_blobs = gcs_handler.client.list_blobs(bucket_name, prefix=dest_blob_name)
+    if any(filter(lambda blob: blob.name == dest_blob_name, found_blobs)):
+        logger.info("   Success!")
+    else:
+        logger.info(
+            f"   Did not find expected blob ({dest_blob_name}) in GCS bucket"
+            f" ({bucket_name})."
+        )
 
 
 @stub.local_entrypoint()

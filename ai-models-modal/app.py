@@ -65,7 +65,9 @@ inference_image = (
     .pip_install(
         [
             "ai-models",
+            "google-cloud-storage",
             "onnx==1.15.0",
+            "ujson",
         ]
         + ["ai-models-" + model for model in config.SUPPORTED_AI_MODELS]
     )

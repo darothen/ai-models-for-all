@@ -8,7 +8,6 @@ Rothenberg, Daniel: "Enabling Scalable, Serverless Weather Model Analyses by
 for more details.
 """
 
-import json
 from pathlib import Path
 from typing import Any
 
