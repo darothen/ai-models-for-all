@@ -1,5 +1,6 @@
 import logging
 import pathlib
+from typing import List
 
 import modal
 
@@ -32,14 +33,6 @@ def get_logger(
     name: str, level: int = logging.INFO, set_all: bool = False
 ) -> logging.Logger:
     """Set up a default logger with configs for working within a modal app."""
-
-    if set_all:
-        all_loggers = [
-            logging.getLogger(name) for name in logging.root.manager.loggerDict
-        ]
-        for logger in all_loggers:
-            logger.setLevel(level)
-
     logger = logging.getLogger(name)
     handler = logging.StreamHandler()
     handler.setFormatter(
@@ -50,3 +43,11 @@ def get_logger(
 
     # logger.propagate = False
     return logger
+
+
+def set_logger_basic_config(level: int = logging.INFO):
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter("%(levelname)s: %(asctime)s: %(name)s  %(message)s")
+    )
+    logging.basicConfig(level=level, handlers=[handler])

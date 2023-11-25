@@ -12,9 +12,14 @@ logger = config.get_logger(__name__, set_all=True)
 @stub.function(
     image=stub.image,
     secret=config.ENV_SECRETS,
+    gpu="any",
+    timeout=60,
 )
 def check_assets():
     import cdsapi
+    import modal
+
+    logger.info(f"Running locally -> {modal.is_local()}")
 
     assets = list(config.AI_MODEL_ASSETS_DIR.glob("**/*"))
     logger.info(f"Found {len(assets)} assets:")
@@ -32,14 +37,27 @@ def check_assets():
     logger.info("Trying to import eccodes...")
     import eccodes
 
+    logger.info("Getting GPU information...")
+    import onnxruntime as ort
+
+    logger.info(
+        f"ort avail providers: {ort.get_available_providers()}"
+    )  # output: ['CUDAExecutionProvider', 'CPUExecutionProvider']
+    logger.info(f"onnxruntime device: {ort.get_device()}")  # output: GPU
+
 
 @stub.function(
     image=stub.image,
     secret=config.ENV_SECRETS,
     # volumes={VOLUME_ROOT: stub.volume},
-    # gpu=DEFAULT_GPU_CONFIG, timeout=600
+    # gpu=config.DEFAULT_GPU_CONFIG,
+    gpu="a10g",
+    timeout=600,
 )
 def generate_forecast(model_name: str = config.SUPPORTED_AI_MODELS[0]):
+    """Generate a forecast using the specified model."""
+    config.set_logger_basic_config()
+    # config.set_logger(["ai-models", f"ai-models-{model_name}"])
     logger.info(f"Attempting to initialize model {model_name}...")
     init_model = model.load_model(
         # Necessary arguments to instantiate a Model object
@@ -59,7 +77,8 @@ def generate_forecast(model_name: str = config.SUPPORTED_AI_MODELS[0]):
         model_args={},
         assets_sub_directory=None,
         staging_dates=None,
-        only_gpu=False,  # TODO: change this to True once we run on GPUs
+        archive_requests=False,
+        only_gpu=True,  # TODO: change this to True once we run on GPUs
     )
     logger.info("Generating forecast...")
     init_model.run()

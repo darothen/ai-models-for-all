@@ -41,13 +41,22 @@ def download_model_assets():
 
 
 # Set up the image that we'll use for performing model inference.
+# NOTE: We use a somewhat convoluted build procedure here, but after much trial
+# and error, this seems to reliably build a working application. The biggest
+# issue we ran into was getting onnx to detect our GPU and NVIDIA libraries
+# correctly. To achieve this, we manually install via mamba a known, working
+# combination of CUDA and cuDNN. We also have to be careful when we install the
+# library for model-specific plugins to ai-models; these tended to re-install
+# the CPU-only onnxruntime library, so we manually uninstall that and purposely
+# install the onnxrtuntime-gpu library instead.
 inference_image = (
     modal.Image
-    # Micromamba will be much faster than conda, buy we need to pin to
+    # Micromamba will be much faster than conda, but we need to pin to
     # Python=3.10 to ensure ai-models' dependencies work correctly.
     .micromamba(python_version="3.10")
     .micromamba_install(
-        "cudatoolkit",
+        "cudatoolkit=11.8",
+        "cudnn<=8.7.0",
         "eccodes",
         channels=[
             "conda-forge",
@@ -56,9 +65,12 @@ inference_image = (
     .pip_install(
         [
             "ai-models",
+            "onnx==1.15.0",
         ]
         + ["ai-models-" + model for model in config.SUPPORTED_AI_MODELS]
     )
+    .run_commands("pip uninstall -y onnxruntime")
+    .pip_install("onnxruntime-gpu==1.16.3")
     .run_function(download_model_assets)
     # Generate a blank .cdsapirc file so that we can override credentials with
     # environment variables later on. This is necessary because the ai-models
