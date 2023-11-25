@@ -35,7 +35,7 @@ files per model step, with metadata following CF conventions) as they mature her
 
 If you use this package, please give credit to [Daniel Rothenberg](https://github.com/darothen)
 (<daniel@danielrothenberg.com> or [@danrothenberg](https://twitter.com/danrothenberg)),
-as well as the increidble team at [ECMWF Lab](https://github.com/ecmwf-lab) and the
+as well as the incredible team at [ECMWF Lab](https://github.com/ecmwf-lab) and the
 publishers of any forecast model you use.
 
 **NOTE THAT EACH MODEL PROVIDED BY AI-MODELS HAS ITS OWN LICENSE AND RESTRICTION**.
