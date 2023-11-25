@@ -38,6 +38,13 @@ DEFAULT_GPU_CONFIG = modal.gpu.A100(memory=40)
 ENV_SECRETS = modal.Secret.from_dotenv()
 
 
+def validate_env():
+    """Validate that expected env vars from .env are imported correctly."""
+    assert os.environ.get("CDS_API_KEY", "") != "YOUR_KEY_HERE"
+    assert os.environ.get("GCS_SERVICE_ACCOUNT_INFO", "") != "YOUR_SERVICE_ACCOUNT_INFO"
+    assert os.environ.get("GCS_BUCKET_NAME", "") != "YOUR_BUCKET_NAME"
+
+
 def make_output_path(model_name: str, init_datetime: datetime.datetime) -> pathlib.Path:
     """Create a full path for writing a model output GRIB file."""
     filename = f"{model_name}.{init_datetime:%Y%m%d%H%M}.grib"

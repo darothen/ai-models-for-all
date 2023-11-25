@@ -4,7 +4,6 @@ import os
 import pathlib
 
 import modal
-import ujson
 from ai_models import model
 
 from . import config, gcs
@@ -22,10 +21,13 @@ logger = config.get_logger(__name__, add_handler=False)
     timeout=60,
     allow_cross_region_volumes=True,
 )
-def check_assets():
+def check_assets(skip_validate_env: bool = False):
     """This is a placeholder function for testing that the application and credentials
     are all set up correctly and working as expected."""
     import cdsapi
+
+    if not skip_validate_env:
+        config.validate_env()
 
     logger.info(f"Running locally -> {modal.is_local()}")
 
@@ -155,8 +157,13 @@ def generate_forecast(
     model_name: str = config.SUPPORTED_AI_MODELS[0],
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
     lead_time: int = 12,
+    skip_validate_env: bool = False,
 ):
     """Generate a forecast using the specified model."""
+
+    if not skip_validate_env:
+        config.validate_env()
+
     logger.info(f"Building model {model_name}...")
     ai_model = AIModel(model_name, model_init, lead_time)
     logger.info("... model ready!")
