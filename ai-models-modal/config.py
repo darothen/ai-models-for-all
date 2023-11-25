@@ -28,8 +28,18 @@ DEFAULT_GPU_CONFIG = modal.gpu.A100(memory=40)
 ENV_SECRETS = modal.Secret.from_dotenv()
 
 
-def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
+def get_logger(
+    name: str, level: int = logging.INFO, set_all: bool = False
+) -> logging.Logger:
     """Set up a default logger with configs for working within a modal app."""
+
+    if set_all:
+        all_loggers = [
+            logging.getLogger(name) for name in logging.root.manager.loggerDict
+        ]
+        for logger in all_loggers:
+            logger.setLevel(level)
+
     logger = logging.getLogger(name)
     handler = logging.StreamHandler()
     handler.setFormatter(
@@ -37,5 +47,6 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     )
     logger.addHandler(handler)
     logger.setLevel(level)
+
     # logger.propagate = False
     return logger

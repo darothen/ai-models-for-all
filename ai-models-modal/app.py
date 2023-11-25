@@ -48,6 +48,7 @@ inference_image = (
     .micromamba(python_version="3.10")
     .micromamba_install(
         "cudatoolkit",
+        "eccodes",
         channels=[
             "conda-forge",
         ],
@@ -59,6 +60,13 @@ inference_image = (
         + ["ai-models-" + model for model in config.SUPPORTED_AI_MODELS]
     )
     .run_function(download_model_assets)
+    # Generate a blank .cdsapirc file so that we can override credentials with
+    # environment variables later on. This is necessary because the ai-models
+    # package input handler ultimately uses climetlab.sources.CDSAPIKeyPrompt to
+    # create a client to the CDS API, and it has a hard-coded prompt check
+    # which requires user interaction if this file doesn't exist.
+    # TODO: Patch climetlab to allow env var overrides for CDS API credentials.
+    .run_commands("touch /root/.cdsapirc")
 )
 
 
