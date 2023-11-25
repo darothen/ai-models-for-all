@@ -130,7 +130,6 @@ class AIModel:
     @modal.method()
     def run_model(self) -> None:
         self.init_model.run()
-        pass
 
 
 @stub.function(
@@ -189,8 +188,8 @@ def generate_forecast(
     # asked for a service account with sufficient permissions to manipulate
     # individual listings like this. Instead, we will just list all the blobs
     # in the target destination and check if we see the one we just uploaded.
-    found_blobs = gcs_handler.client.list_blobs(bucket_name, prefix=dest_blob_name)
-    if any(filter(lambda blob: blob.name == dest_blob_name, found_blobs)):
+    target_blob = gcs_handler.client.bucket(bucket_name).blob(dest_blob_name)
+    if target_blob.exists():
         logger.info("   Success!")
     else:
         logger.info(
@@ -200,6 +199,8 @@ def generate_forecast(
 
 
 @stub.local_entrypoint()
-def main():
-    check_assets.remote()
-    generate_forecast.remote()
+def main(run_checks: bool = True, run_forecast: bool = True):
+    if run_checks:
+        check_assets.remote()
+    if run_forecast:
+        generate_forecast.remote()
