@@ -94,8 +94,12 @@ class AIModel:
         self.init_datetime = init_datetime
         self.out_pth = config.make_output_path(model_name, init_datetime)
         self.out_pth.parent.mkdir(parents=True, exist_ok=True)
+
+    def __enter__(self):
+        logger.info(f"   Model: {self.model_name}")
         logger.info(f"   Run initialization datetime: {self.init_datetime}")
         logger.info(f"   Model output path: {str(self.out_pth)}")
+        logger.info("Running model initialization / staging...")
         self.init_model = model.load_model(
             # Necessary arguments to instantiate a Model object
             input="cds",
@@ -121,10 +125,12 @@ class AIModel:
             archive_requests=False,
             only_gpu=True,
         )
+        logger.info("... done! Model is initialized and ready to run.")
 
     @modal.method()
     def run_model(self) -> None:
         self.init_model.run()
+        pass
 
 
 @stub.function(
@@ -138,14 +144,13 @@ def generate_forecast(
     init_datetime: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
 ):
     """Generate a forecast using the specified model."""
-    logger.info(f"Attempting to initialize model {model_name}...")
+    logger.info(f"Building model {model_name}...")
     ai_model = AIModel(model_name, init_datetime)
+    logger.info(f"... model ready!")
 
     logger.info("Generating forecast...")
     ai_model.run_model.remote()
-    # TODO: Modal re-runs the __init__ method after this call for some reason, look into
-    # why that's the case and if we can avoid it.
-    logger.info("Done!")
+    logger.info("... forecast complete!")
 
     # Double check that we successfully produced a model output file.
     logger.info(f"Checking output file {str(ai_model.out_pth)}...")
