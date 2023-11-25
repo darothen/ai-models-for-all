@@ -10,7 +10,7 @@ logger = config.get_logger(__name__)
 
 # NOTE: In the first pass here, let's store the model assets directly in the
 # image that we build. We can figure out optimizations later on.
-# stub.volume = modal.Volume.persisted("ai-models-assets")
+# TODO: Re-factor model asset acquisition to store to app NFS.
 def download_model_assets():
     """Download and cache the model weights necessary to run the model."""
     from ai_models import model

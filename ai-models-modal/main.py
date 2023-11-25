@@ -1,3 +1,4 @@
+"""A Modal application for running `ai-models` weather forecasts."""
 import datetime
 import os
 import pathlib
