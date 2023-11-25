@@ -88,15 +88,18 @@ class AIModel:
         # TODO: Re-factor arguments into a well-structured dataclass.
         model_name: str = config.SUPPORTED_AI_MODELS[0],
         model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+        lead_time: int = 12,
     ) -> None:
         self.model_name = model_name
         self.model_init = model_init
+        self.lead_time = lead_time
         self.out_pth = config.make_output_path(model_name, model_init)
         self.out_pth.parent.mkdir(parents=True, exist_ok=True)
 
     def __enter__(self):
         logger.info(f"   Model: {self.model_name}")
         logger.info(f"   Run initialization datetime: {self.model_init}")
+        logger.info(f"   Forecast lead time: {self.lead_time}")
         logger.info(f"   Model output path: {str(self.out_pth)}")
         logger.info("Running model initialization / staging...")
         self.init_model = model.load_model(
@@ -114,7 +117,7 @@ class AIModel:
             time=self.model_init.hour,
             # TODO: allow user to specify desired forecast lead time, with limited
             # validation (e.g. < 10 days)
-            lead_time=12,
+            lead_time=self.lead_time,
             path=str(self.out_pth),
             metadata={},  # Read by the output data handler
             # Unused arguments that are required by Model class methods to work.
@@ -139,12 +142,13 @@ class AIModel:
 )
 def generate_forecast(
     model_name: str = config.SUPPORTED_AI_MODELS[0],
-    init_datetime: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+    model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+    lead_time: int = 12,
 ):
     """Generate a forecast using the specified model."""
     logger.info(f"Building model {model_name}...")
-    ai_model = AIModel(model_name, init_datetime)
-    logger.info(f"... model ready!")
+    ai_model = AIModel(model_name, model_init, lead_time)
+    logger.info("... model ready!")
 
     logger.info("Generating forecast...")
     ai_model.run_model.remote()
@@ -160,13 +164,6 @@ def generate_forecast(
     # Try to upload to Google Cloud Storage
     bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
     service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
-    try:
-        service_account_info: dict = ujson.loads(
-            os.environ.get("GCS_SERVICE_ACCOUNT_INFO", "")
-        )
-    except ujson.JSONDecodeError:
-        logger.warning("Could not parse 'GCS_SERVICE_ACCOUNT_INFO'")
-        service_account_info = {}
 
     if (bucket_name is None) or (not service_account_info):
         logger.warning("Not able to access to Google Cloud Storage; skipping upload.")
@@ -226,4 +223,6 @@ def main(
     if run_checks:
         check_assets.remote()
     if run_forecast:
-        generate_forecast.remote(model_name=model, model_init=model_init)
+        generate_forecast.remote(
+            model_name=model, model_init=model_init, lead_time=lead_time
+        )
