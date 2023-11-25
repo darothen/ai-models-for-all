@@ -11,9 +11,6 @@ This is a **preview release** of this tool; it has a few limitations:
   these credentials, it wasn't a high priority).
 - Only PanguWeather is currently supported; once the basic kinks of this tool are worked
   out with test users, we can quickly add FourCastNet and GraphCast.
-- A single initialization date and forecast lead time is hard-coded for testing purposes.
-  These will ultimately be configurable via the command line so you can run an arbitrary
-  forecast.
 - The current application only runs on [Modal](https://www.modal.com); in the future, it
   would be great to port this to other serverless platforms.
 
@@ -55,11 +52,15 @@ the libraries, model weights, and services upon which it is built.
 3. From a terminal, login with the `modal-client`
 4. Navigate to the repository on-disk and execute the command,
    ```shell
-   $ modal run ai-models-modal.main
+   $ modal run ai-models-modal.main [\
+         --model panguweather \
+         --model_init 2023-07-01T00:00 \
+         --lead_time 12]
    ```
    The first time you run this, it will take a few minutes to build an image and set up
    assets on Modal. Then, the model will run remotely on Modal infrastructure, and you
-   can monitor its progress via the logs streamed to your terminal.
+   can monitor its progress via the logs streamed to your terminal. The bracketed CLI
+   args are the defaults that will be used if you don't provide any.
 5. Download the model output from Google Cloud Storage at **gs://{GCS_BUCKET_NAME}** as
    provided via the `.env` file.
 
