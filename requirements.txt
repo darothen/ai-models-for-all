@@ -1,4 +1,5 @@
 ai-models
-ai-models-panguweather
+google-cloud-storage
 modal
 python-dotenv
+ujson
