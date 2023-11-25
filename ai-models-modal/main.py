@@ -23,6 +23,8 @@ logger = config.get_logger(__name__, add_handler=False)
     allow_cross_region_volumes=True,
 )
 def check_assets():
+    """This is a placeholder function for testing that the application and credentials
+    are all set up correctly and working as expected."""
     import cdsapi
 
     logger.info(f"Running locally -> {modal.is_local()}")
@@ -173,7 +175,7 @@ def generate_forecast(
         ai_model.out_pth,
         dest_blob_name,
     )
-    logger.info(f"Checking that upload was successful...")
+    logger.info("Checking that upload was successful...")
     # NOTE: We can't use client.get_bucket().get_blob() here because we haven't
     # asked for a service account with sufficient permissions to manipulate
     # individual listings like this. Instead, we will just list all the blobs
