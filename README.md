@@ -66,7 +66,7 @@ the libraries, model weights, and services upon which it is built.
 ## Getting Started
 
 To use this demo, you'll need accounts set up on [Google Cloud](https://cloud.google.com),
-[Modal](https://www.modal.com), and the Copernicus Data Store](<https://cds.climate.copernicus.eu/>). 
+[Modal](https://www.modal.com), and the [Copernicus Data Store](<https://cds.climate.copernicus.eu/>).
 Don't worry - even though you do need to supply them ith credit card information, this
 demo should cost virtually nothing to run; we'll use very limited storage on Google
 Cloud Storage for forecast model outputs that we generate (a few cents per month if you

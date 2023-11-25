@@ -109,6 +109,8 @@ class AIModel:
             assets=config.AI_MODEL_ASSETS_DIR,
             date=int(self.init_datetime.strftime("%Y%m%d")),
             time=self.init_datetime.hour,
+            # TODO: allow user to specify desired forecast lead time, with limited
+            # validation (e.g. < 10 days)
             lead_time=12,
             path=str(self.out_pth),
             metadata={},  # Read by the output data handler
@@ -140,7 +142,9 @@ def generate_forecast(
     ai_model = AIModel(model_name, init_datetime)
 
     logger.info("Generating forecast...")
-    # ai_model.run_model.remote()
+    ai_model.run_model.remote()
+    # TODO: Modal re-runs the __init__ method after this call for some reason, look into
+    # why that's the case and if we can avoid it.
     logger.info("Done!")
 
     # Double check that we successfully produced a model output file.
