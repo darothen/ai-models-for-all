@@ -13,16 +13,16 @@ SUPPORTED_AI_MODELS = [
 
 MAX_FCST_LEAD_TIME = 24 * 10  # 10 days
 
-# Set up paths that can be mapped to our Volume in order to persist model
-# assets after they've been downloaded once.
-VOLUME_ROOT = pathlib.Path("/vol/ai-models")
-AI_MODEL_ASSETS_DIR = VOLUME_ROOT / "assets"
-
 
 # Set up a cache for assets leveraged during model runtime.
 CACHE_DIR = pathlib.Path("/cache")
 # Root dir in cache for writing completed model outputs.
 OUTPUT_ROOT_DIR = CACHE_DIR / "output"
+
+# Set up paths that can be mapped to our Volume in order to persist model
+# assets after they've been downloaded once.
+# TODO: Should we have a separate Volume instance for the model assets?
+AI_MODEL_ASSETS_DIR = CACHE_DIR / "assets"
 
 
 # Set a default GPU that's large enough to work with any of the published models

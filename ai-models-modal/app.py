@@ -8,11 +8,13 @@ from . import config
 logger = config.get_logger(__name__)
 
 
-# NOTE: In the first pass here, let's store the model assets directly in the
-# image that we build. We can figure out optimizations later on.
-# TODO: Re-factor model asset acquisition to store to app NFS.
 def download_model_assets():
     """Download and cache the model weights necessary to run the model."""
+    raise Exception(
+        "This function is deprecated; assets will be downloaded on the first run of a model"
+        " and saved to an NFS running within the application."
+    )
+
     from ai_models import model
     from multiurl import download
 
@@ -73,7 +75,7 @@ inference_image = (
     )
     .run_commands("pip uninstall -y onnxruntime")
     .pip_install("onnxruntime-gpu==1.16.3")
-    .run_function(download_model_assets)
+    # .run_function(download_model_assets)
     # Generate a blank .cdsapirc file so that we can override credentials with
     # environment variables later on. This is necessary because the ai-models
     # package input handler ultimately uses climetlab.sources.CDSAPIKeyPrompt to

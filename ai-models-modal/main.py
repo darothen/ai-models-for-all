@@ -147,6 +147,42 @@ class AIModel:
         self.init_model.run()
 
 
+# TODO: This could really be its own function; it can take a few minutes to
+# run this routine, and there's absolutely no reason why that should be
+# burned on an expensive GPU machine. For Panguweather this took shy of 5
+# minutes to run, which costs $0.31 on an A100.
+def _maybe_download_assets(model_name: str) -> None:
+    from multiurl import download
+
+    logger.info(f"Maybe retrieving assets for model {model_name}...")
+
+    # For the requested model, retrieve the pretrained model weights and cache them to
+    # our storage volume. We are generally replicating the code from
+    # ai_models.model.Model.download_assets(), but with some hard-coded options;
+    # that method is also originally written as an instance method, and we don't
+    # want to run the actual initializer for a model type to access it since
+    # that would require us to provide input/output options and otherwise
+    # prepare more generally for a model inference run - something we're not
+    # ready to do at this stage of setup.
+    model_initializer = model.available_models()[model_name].load()
+    n_files = len(model_initializer.download_files)
+    n_downloaded = 0
+    for i, file in enumerate(model_initializer.download_files):
+        asset = os.path.realpath(os.path.join(config.AI_MODEL_ASSETS_DIR, file))
+        if not os.path.exists(asset):
+            os.makedirs(os.path.dirname(asset), exist_ok=True)
+            logger.info(f"({i}/{n_files}) downloading {asset}")
+            download(
+                model_initializer.download_url.format(file=file),
+                asset + ".download",
+            )
+            os.rename(asset + ".download", asset)
+            n_downloaded += 1
+    if not n_downloaded:
+        logger.info("   No assets need to be downloaded.")
+    logger.info("... done retrieving assets.")
+
+
 @stub.function(
     image=stub.image,
     secret=config.ENV_SECRETS,
@@ -164,9 +200,11 @@ def generate_forecast(
     if not skip_validate_env:
         config.validate_env()
 
-    logger.info(f"Building model {model_name}...")
+    logger.info(f"Setting up model {model_name} conditions...")
+    # Pre-emptively try to download assets from our cheaper CPU-only function, so that
+    # we don't waste time on the GPU machine.
+    _maybe_download_assets(model_name)
     ai_model = AIModel(model_name, model_init, lead_time)
-    logger.info("... model ready!")
 
     logger.info("Generating forecast...")
     ai_model.run_model.remote()
