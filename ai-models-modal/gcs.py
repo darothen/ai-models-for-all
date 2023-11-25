@@ -8,14 +8,30 @@ Rothenberg, Daniel: "Enabling Scalable, Serverless Weather Model Analyses by
 for more details.
 """
 
+import os
 from pathlib import Path
 from typing import Any
 
+import ujson
 from google.cloud import storage
 
 from . import config
 
 logger = config.get_logger(__name__)
+
+
+def get_service_account_json(env_var: str = "GCS_SERVICE_ACCOUNT_INFO") -> dict:
+    """Try to generate service account JSON from an env var.
+
+    Parameters:
+    -----------
+    env_var: str
+        Name of an environment variable containing stringified JSON service account credentials.
+    """
+    service_account_info = os.environ.get(env_var, "")
+    if not service_account_info:
+        return {}
+    return ujson.loads(service_account_info)
 
 
 class GoogleCloudStorageHandler(object):

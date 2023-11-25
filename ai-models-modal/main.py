@@ -62,9 +62,8 @@ def check_assets():
         logger.info(f"({i}) {asset}")
 
     logger.info("Checking for access to GCS...")
-    import ujson
 
-    service_account_info: dict = ujson.loads(os.environ["GCS_SERVICE_ACCOUNT_INFO"])
+    service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
     gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
         service_account_info
     )
@@ -88,16 +87,16 @@ class AIModel:
         self,
         # TODO: Re-factor arguments into a well-structured dataclass.
         model_name: str = config.SUPPORTED_AI_MODELS[0],
-        init_datetime: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+        model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
     ) -> None:
         self.model_name = model_name
-        self.init_datetime = init_datetime
-        self.out_pth = config.make_output_path(model_name, init_datetime)
+        self.model_init = model_init
+        self.out_pth = config.make_output_path(model_name, model_init)
         self.out_pth.parent.mkdir(parents=True, exist_ok=True)
 
     def __enter__(self):
         logger.info(f"   Model: {self.model_name}")
-        logger.info(f"   Run initialization datetime: {self.init_datetime}")
+        logger.info(f"   Run initialization datetime: {self.model_init}")
         logger.info(f"   Model output path: {str(self.out_pth)}")
         logger.info("Running model initialization / staging...")
         self.init_model = model.load_model(
@@ -111,8 +110,8 @@ class AIModel:
             # they're not clearly declared in the class documentation so there is
             # a bit of trial and error involved in figuring out what's needed.
             assets=config.AI_MODEL_ASSETS_DIR,
-            date=int(self.init_datetime.strftime("%Y%m%d")),
-            time=self.init_datetime.hour,
+            date=int(self.model_init.strftime("%Y%m%d")),
+            time=self.model_init.hour,
             # TODO: allow user to specify desired forecast lead time, with limited
             # validation (e.g. < 10 days)
             lead_time=12,
@@ -160,6 +159,7 @@ def generate_forecast(
 
     # Try to upload to Google Cloud Storage
     bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
+    service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
     try:
         service_account_info: dict = ujson.loads(
             os.environ.get("GCS_SERVICE_ACCOUNT_INFO", "")
@@ -195,8 +195,35 @@ def generate_forecast(
 
 
 @stub.local_entrypoint()
-def main(run_checks: bool = True, run_forecast: bool = True):
+def main(
+    model: str = "panguweather",
+    lead_time: int = 12,
+    model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+    run_checks: bool = True,
+    run_forecast: bool = True,
+):
+    """Entrypoint for triggering a remote ai-models weather forecast run.
+
+    Parameters:
+        model: short name for the model to run; must be one of ['panguweather',
+            'fourcastnet_v2', 'graphcast']. Defaults to 'panguweather'.
+        lead_time: number of hours to forecast into the future. Defaults to 12.
+        model_init: datetime to use when initializing the model. Defaults to
+            2023-07-01T00:00.
+        run_checks: enable call to remote check_assets() for triaging the application
+            runtime environment.
+        run_forecast: enable call to remote generate_forecast() for running the actual
+            forecast model.
+    """
+    # Quick sanity checks on model arguments; if we don't need to call out to our
+    # remote apps, then we shouldn't!
+    if model not in config.SUPPORTED_AI_MODELS:
+        raise ValueError(
+            f"User provided model_name '{model}' is not supported; must be one of"
+            f" {config.SUPPORTED_AI_MODELS}."
+        )
+
     if run_checks:
         check_assets.remote()
     if run_forecast:
-        generate_forecast.remote()
+        generate_forecast.remote(model_name=model, model_init=model_init)
