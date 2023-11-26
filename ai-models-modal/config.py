@@ -5,12 +5,6 @@ import pathlib
 
 import modal
 
-# Define a list of which wrapped AI NWP models we want to make available to the
-# user. As of 11/23/23, limit this to PanguWeather for dev purposes.
-SUPPORTED_AI_MODELS = [
-    "panguweather",
-]
-
 MAX_FCST_LEAD_TIME = 24 * 10  # 10 days
 
 

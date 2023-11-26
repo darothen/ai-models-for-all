@@ -3,7 +3,7 @@ import os
 
 import modal
 
-from . import config
+from . import ai_models_shim, config
 
 logger = config.get_logger(__name__)
 
@@ -71,11 +71,13 @@ inference_image = (
             "onnx==1.15.0",
             "ujson",
         ]
-        + ["ai-models-" + model for model in config.SUPPORTED_AI_MODELS]
+        + [
+            "ai-models-" + plugin_config.plugin_package_name
+            for plugin_config in ai_models_shim.AI_MODELS_CONFIGS.values()
+        ]
     )
     .run_commands("pip uninstall -y onnxruntime")
     .pip_install("onnxruntime-gpu==1.16.3")
-    # .run_function(download_model_assets)
     # Generate a blank .cdsapirc file so that we can override credentials with
     # environment variables later on. This is necessary because the ai-models
     # package input handler ultimately uses climetlab.sources.CDSAPIKeyPrompt to
@@ -86,6 +88,8 @@ inference_image = (
 )
 
 # Set up a storage volume for sharing model outputs between processes.
+# TODO: Explore adding a modal.Volume to cache model weights since it should be
+# much faster for loading them at runtime.
 volume = modal.NetworkFileSystem.persisted("ai-models-cache")
 
 stub = modal.Stub(name="ai-models-for-all", image=inference_image)

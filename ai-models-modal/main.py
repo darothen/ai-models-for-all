@@ -6,7 +6,7 @@ import pathlib
 import modal
 from ai_models import model
 
-from . import config, gcs
+from . import ai_models_shim, config, gcs
 from .app import stub, volume
 
 config.set_logger_basic_config()
@@ -88,7 +88,7 @@ class AIModel:
     def __init__(
         self,
         # TODO: Re-factor arguments into a well-structured dataclass.
-        model_name: str = config.SUPPORTED_AI_MODELS[0],
+        model_name: str = "panguweather",
         model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
         lead_time: int = 12,
     ) -> None:
@@ -117,12 +117,12 @@ class AIModel:
         logger.info(f"   Forecast lead time: {self.lead_time}")
         logger.info(f"   Model output path: {str(self.out_pth)}")
         logger.info("Running model initialization / staging...")
-        self.init_model = model.load_model(
+        model_class = ai_models_shim.get_model_class(self.model_name)
+        self.init_model = model_class(
             # Necessary arguments to instantiate a Model object
             input="cds",
             output="file",
             download_assets=False,
-            name=self.model_name,
             # Additional arguments. These are generally set as object attributes
             # which are then referred to by various Model methods; unfortunately,
             # they're not clearly declared in the class documentation so there is
@@ -165,16 +165,16 @@ def _maybe_download_assets(model_name: str) -> None:
     # that would require us to provide input/output options and otherwise
     # prepare more generally for a model inference run - something we're not
     # ready to do at this stage of setup.
-    model_initializer = model.available_models()[model_name].load()
-    n_files = len(model_initializer.download_files)
+    model_class = ai_models_shim.get_model_class(model_name)
+    n_files = len(model_class.download_files)
     n_downloaded = 0
-    for i, file in enumerate(model_initializer.download_files):
+    for i, file in enumerate(model_class.download_files):
         asset = os.path.realpath(os.path.join(config.AI_MODEL_ASSETS_DIR, file))
         if not os.path.exists(asset):
             os.makedirs(os.path.dirname(asset), exist_ok=True)
             logger.info(f"({i}/{n_files}) downloading {asset}")
             download(
-                model_initializer.download_url.format(file=file),
+                model_class.download_url.format(file=file),
                 asset + ".download",
             )
             os.rename(asset + ".download", asset)
@@ -189,9 +189,10 @@ def _maybe_download_assets(model_name: str) -> None:
     secret=config.ENV_SECRETS,
     network_file_systems={str(config.CACHE_DIR): volume},
     allow_cross_region_volumes=True,
+    timeout=1_800,
 )
 def generate_forecast(
-    model_name: str = config.SUPPORTED_AI_MODELS[0],
+    model_name: str = "panguweather",
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
     lead_time: int = 12,
     skip_validate_env: bool = False,
@@ -271,10 +272,10 @@ def main(
     """
     # Quick sanity checks on model arguments; if we don't need to call out to our
     # remote apps, then we shouldn't!
-    if model not in config.SUPPORTED_AI_MODELS:
+    if model not in ai_models_shim.SUPPORTED_AI_MODELS:
         raise ValueError(
             f"User provided model_name '{model}' is not supported; must be one of"
-            f" {config.SUPPORTED_AI_MODELS}."
+            f" {ai_models_shim.SUPPORTED_AI_MODELS}."
         )
 
     if run_checks:
