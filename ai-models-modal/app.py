@@ -80,6 +80,7 @@ inference_image = (
     # of those here.
     .pip_install(
         ["jax[cuda11_pip]", "git+https://github.com/deepmind/graphcast.git"],
+        find_links="https://storage.googleapis.com/jax-releases/jax_releases.html",
     )
     # (3) Install the ai-models plugins enabled for this package.
     .pip_install(
