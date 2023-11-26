@@ -9,8 +9,8 @@ This is a **preview release** of this tool; it has a few limitations:
 - We only enable access to the CDS-based archive of ERA-5 data to initialize the
   models (access via MARS will be forthcoming, but since most users will not have
   these credentials, it wasn't a high priority).
-- Only PanguWeather is currently supported; once the basic kinks of this tool are worked
-  out with test users, we can quickly add FourCastNet and GraphCast.
+- Only PanguWeather and FourCastNet(v2-small)  are currently supported; GraphCast support
+  is TBD.
 - The current application only runs on [Modal](https://www.modal.com); in the future, it
   would be great to port this to other serverless platforms.
 
@@ -53,7 +53,7 @@ the libraries, model weights, and services upon which it is built.
 4. Navigate to the repository on-disk and execute the command,
    ```shell
    $ modal run ai-models-modal.main [\
-         --model panguweather \
+         --model {panguweather,fourcastnetv2-small} \
          --model_init 2023-07-01T00:00 \
          --lead_time 12]
    ```
