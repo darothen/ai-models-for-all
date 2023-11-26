@@ -64,6 +64,9 @@ inference_image = (
             "conda-forge",
         ],
     )
+    # Run several successive pip installs; this makes it a little bit easier to
+    # handle the dependencies and final tweaks across different plugins.
+    # (1) Install ai-models and its dependencies.
     .pip_install(
         [
             "ai-models",
@@ -71,12 +74,16 @@ inference_image = (
             "onnx==1.15.0",
             "ujson",
         ]
-        + [
+    )
+    # (2) Install the ai-models plugins enabled for this package.
+    .pip_install(
+        [
             "ai-models-" + plugin_config.plugin_package_name
             for plugin_config in ai_models_shim.AI_MODELS_CONFIGS.values()
         ]
     )
     .run_commands("pip uninstall -y onnxruntime")
+    # (3) Ensure that we're using the ONNX GPU-enabled runtime.
     .pip_install("onnxruntime-gpu==1.16.3")
     # Generate a blank .cdsapirc file so that we can override credentials with
     # environment variables later on. This is necessary because the ai-models
