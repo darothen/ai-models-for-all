@@ -253,7 +253,7 @@ def generate_forecast(
 
 @stub.local_entrypoint()
 def main(
-    model: str = "panguweather",
+    model_name: str = "panguweather",
     lead_time: int = 12,
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
     run_checks: bool = True,
@@ -274,9 +274,9 @@ def main(
     """
     # Quick sanity checks on model arguments; if we don't need to call out to our
     # remote apps, then we shouldn't!
-    if model not in ai_models_shim.SUPPORTED_AI_MODELS:
+    if model_name not in ai_models_shim.SUPPORTED_AI_MODELS:
         raise ValueError(
-            f"User provided model_name '{model}' is not supported; must be one of"
+            f"User provided model_name '{model_name}' is not supported; must be one of"
             f" {ai_models_shim.SUPPORTED_AI_MODELS}."
         )
 
@@ -284,5 +284,5 @@ def main(
         check_assets.remote()
     if run_forecast:
         generate_forecast.remote(
-            model_name=model, model_init=model_init, lead_time=lead_time
+            model_name=model_name, model_init=model_init, lead_time=lead_time
         )
