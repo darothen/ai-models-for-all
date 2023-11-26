@@ -54,6 +54,16 @@ AI_MODELS_CONFIGS: dict[str, AIModelPluginConfig] = {
             value="ai_models_fourcastnetv2.model:FourCastNetv2",
         ),
     ),
+    # GraphCast
+    "graphcast": AIModelPluginConfig(
+        "graphcast",
+        "graphcast",
+        EntryPoint(
+            name="graphcast",
+            group="ai_models.model",
+            value="ai_models_graphcast.model:GraphcastModel",
+        ),
+    ),
 }
 
 SUPPORTED_AI_MODELS = [

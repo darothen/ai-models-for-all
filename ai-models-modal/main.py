@@ -139,6 +139,8 @@ class AIModel:
             staging_dates=None,
             archive_requests=False,
             only_gpu=True,
+            debug=False,  # Assumed set by GraphcastModel; produces additional auxiliary
+            # output NetCDF files.
         )
         logger.info("... done! Model is initialized and ready to run.")
 

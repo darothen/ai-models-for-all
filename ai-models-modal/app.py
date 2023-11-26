@@ -51,6 +51,11 @@ def download_model_assets():
 # library for model-specific plugins to ai-models; these tended to re-install
 # the CPU-only onnxruntime library, so we manually uninstall that and purposely
 # install the onnxrtuntime-gpu library instead.
+# TODO: Explore whether we can consolidate the outputs from all of these pip
+# installation steps into a single, master requirements.txt. Several packages seem
+# to produce redundant requirements that lead to some version ping-ponging during
+# setup. A deterministic process to produce a single requirements set that we could
+# keep up-to-date would improve maintainability.
 inference_image = (
     modal.Image
     # Micromamba will be much faster than conda, but we need to pin to
@@ -84,8 +89,8 @@ inference_image = (
     # properly configured version of JAX that can run on GPUs - so we take care
     # of those here.
     .pip_install(
-        ["jax[cuda11_pip]", "git+https://github.com/deepmind/graphcast.git"],
-        find_links="https://storage.googleapis.com/jax-releases/jax_releases.html",
+        ["jax[cuda11_pip]==0.4.20", "git+https://github.com/deepmind/graphcast.git"],
+        find_links="https://storage.googleapis.com/jax-releases/jax_cuda_releases.html",
     )
     # (3) Install the ai-models plugins enabled for this package.
     .pip_install(
