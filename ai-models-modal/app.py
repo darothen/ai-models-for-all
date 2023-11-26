@@ -56,6 +56,11 @@ inference_image = (
     # Micromamba will be much faster than conda, but we need to pin to
     # Python=3.10 to ensure ai-models' dependencies work correctly.
     .micromamba(python_version="3.10")
+    .apt_install(
+        [
+            "git",
+        ]
+    )
     .micromamba_install(
         "cudatoolkit=11.8",
         "cudnn<=8.7.0",
