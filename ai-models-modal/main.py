@@ -137,10 +137,13 @@ class AIModel:
             model_args={},
             assets_sub_directory=None,
             staging_dates=None,
+            # TODO: Figure out if we can set up caching of model initial conditions
+            # using the default interface.
             archive_requests=False,
             only_gpu=True,
-            debug=False,  # Assumed set by GraphcastModel; produces additional auxiliary
+            # Assumed set by GraphcastModel; produces additional auxiliary
             # output NetCDF files.
+            debug=False,
         )
         logger.info("... done! Model is initialized and ready to run.")
 
@@ -229,7 +232,7 @@ def generate_forecast(
         logger.warning("Not able to access to Google Cloud Storage; skipping upload.")
         return
 
-    logger.info("Attempting to upload to GCS bucket gs://{bucket_name}...")
+    logger.info(f"Attempting to upload to GCS bucket gs://{bucket_name}...")
     gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
         service_account_info
     )
