@@ -75,7 +75,13 @@ inference_image = (
             "ujson",
         ]
     )
-    # (2) Install the ai-models plugins enabled for this package.
+    # (2) GraphCast has some additional requirements - mostly around building a
+    # properly configured version of JAX that can run on GPUs - so we take care
+    # of those here.
+    .pip_install(
+        ["jax[cuda11_pip]", "git+https://github.com/deepmind/graphcast.git"],
+    )
+    # (3) Install the ai-models plugins enabled for this package.
     .pip_install(
         [
             "ai-models-" + plugin_config.plugin_package_name
@@ -83,7 +89,7 @@ inference_image = (
         ]
     )
     .run_commands("pip uninstall -y onnxruntime")
-    # (3) Ensure that we're using the ONNX GPU-enabled runtime.
+    # (4) Ensure that we're using the ONNX GPU-enabled runtime.
     .pip_install("onnxruntime-gpu==1.16.3")
     # Generate a blank .cdsapirc file so that we can override credentials with
     # environment variables later on. This is necessary because the ai-models
