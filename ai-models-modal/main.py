@@ -83,6 +83,7 @@ def check_assets(skip_validate_env: bool = False):
     network_file_systems={str(config.CACHE_DIR): volume},
     concurrency_limit=1,
     timeout=1_800,
+    allow_cross_region_volumes=True,
 )
 class AIModel:
     def __init__(
