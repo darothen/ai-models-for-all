@@ -70,6 +70,7 @@ inference_image = (
         "cudatoolkit=11.8",
         "cudnn<=8.7.0",
         "eccodes",
+        "pygrib",
         channels=[
             "conda-forge",
         ],

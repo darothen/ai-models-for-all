@@ -3,7 +3,8 @@ use in the AI models application."""
 
 import datetime
 import pathlib
-from collections import Sequence, namedtuple
+from collections import namedtuple
+from typing import Sequence
 
 import pygrib
 

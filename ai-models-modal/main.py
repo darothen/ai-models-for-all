@@ -22,6 +22,7 @@ logger = config.get_logger(__name__, add_handler=False)
 def prepare_gfs_analysis(
     model_name: str = "panguweather",
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+    force: bool = False,
 ):
     """Retrieve and prepare initial conditions from the GFS/GDAS to run with an AI model.
 
@@ -32,6 +33,8 @@ def prepare_gfs_analysis(
         'graphcast']. Defaults to 'panguweather'.
     model_init : datetime.datetime
         Target initialization time or model epoch to fetch.
+    force : bool
+        Force re-download and processing, even if the target file already exists.
 
     """
     from . import gfs
@@ -39,8 +42,17 @@ def prepare_gfs_analysis(
     logger.info(f"Preparing GFS/GDAS initial conditions for {model_name} model run...")
 
     gdas_base_pth = config.INIT_CONDITIONS_DIR / f"{model_init:%Y%m%d%H%M}"
+    gdas_base_pth.mkdir(parents=True, exist_ok=True)
     raw_gdas_fn = "gdas.raw.grib"
     proc_gdas_fn = "gdas.proc.grib"
+
+    # Short-circuit - don't waste our time if file already exists.
+    if (gdas_base_pth / proc_gdas_fn).exists() and not force:
+        logger.info(
+            f"Found existing processed GFS/GDAS file {gdas_base_pth / proc_gdas_fn};"
+            " skipping download and processing."
+        )
+        return
 
     service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
     gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
@@ -59,6 +71,7 @@ def prepare_gfs_analysis(
         raise RuntimeError(f"Failed to download GFS/GDAS blob.")
 
     # Run subsetting
+    logger.info(f"Subsetting GFS/GDAS data...")
     subset_grbs = gfs.process_gdas_grib(gdas_base_pth / raw_gdas_fn)
     with open(gdas_base_pth / proc_gdas_fn, "wb") as f:
         for grb in subset_grbs:
@@ -68,6 +81,20 @@ def prepare_gfs_analysis(
     # Sanity check to make sure that we wrote out the processed GDAS file.
     if not (gdas_base_pth / proc_gdas_fn).exists():
         raise RuntimeError(f"Failed to produce subset GFS/GDAS GRIB.")
+
+    # Clean up
+    logger.info("Cleaning up raw files...")
+    for i, fn in enumerate(
+        [
+            (gdas_base_pth / raw_gdas_fn),
+        ],
+        1,
+    ):
+        logger.info(f"({i}) {fn}")
+        fn.unlink()
+
+    logger.info("Cleaning up raw files...")
+    logger.info("done!")
 
 
 @stub.function(
@@ -347,3 +374,4 @@ def main(
         generate_forecast.remote(
             model_name=model_name, model_init=model_init, lead_time=lead_time
         )
+    # prepare_gfs_analysis.remote(model_name, model_init, force=True)
