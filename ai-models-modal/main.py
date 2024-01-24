@@ -101,8 +101,7 @@ def prepare_gfs_analysis(
     image=stub.image,
     secret=config.ENV_SECRETS,
     network_file_systems={str(config.CACHE_DIR): volume},
-    # TODO: remove GPU resource as it's not needed here.
-    gpu="T4",
+    # gpu="T4",
     timeout=60,
     allow_cross_region_volumes=True,
 )
@@ -285,6 +284,7 @@ def generate_forecast(
     model_name: str = "panguweather",
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
     lead_time: int = 12,
+    use_gfs: bool = False,
     skip_validate_env: bool = False,
 ):
     """Generate a forecast using the specified model."""
@@ -344,6 +344,7 @@ def main(
     model_name: str = "panguweather",
     lead_time: int = 12,
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+    use_gfs: bool = False,
     run_checks: bool = True,
     run_forecast: bool = True,
 ):
@@ -355,6 +356,7 @@ def main(
         lead_time: number of hours to forecast into the future. Defaults to 12.
         model_init: datetime to use when initializing the model. Defaults to
             2023-07-01T00:00.
+        use_gfs: use GFS/GDAS initial conditions instead of the default ERA-5
         run_checks: enable call to remote check_assets() for triaging the application
             runtime environment.
         run_forecast: enable call to remote generate_forecast() for running the actual
@@ -368,10 +370,18 @@ def main(
             f" {ai_models_shim.SUPPORTED_AI_MODELS}."
         )
 
+    # Safe-guard against using unsupported GFS initial conditions - at the moment, we
+    # have only implemented this for Pangu
+    if use_gfs and (model_name != "panguweather"):
+        raise ValueError("Can only use GFS initial conditions with PanguWeather model.")
+
     if run_checks:
         check_assets.remote()
     if run_forecast:
         generate_forecast.remote(
-            model_name=model_name, model_init=model_init, lead_time=lead_time
+            model_name=model_name,
+            model_init=model_init,
+            lead_time=lead_time,
+            use_gfs=use_gfs,
         )
     # prepare_gfs_analysis.remote(model_name, model_init, force=True)
