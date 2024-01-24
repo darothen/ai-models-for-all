@@ -18,6 +18,10 @@ OUTPUT_ROOT_DIR = CACHE_DIR / "output"
 # TODO: Should we have a separate Volume instance for the model assets?
 AI_MODEL_ASSETS_DIR = CACHE_DIR / "assets"
 
+# Set up paths to archive initial conditions that are prepared for our model runs;
+# for now, this is just the processed GFS/GDAS initial conditions that we produce.
+INIT_CONDITIONS_DIR = CACHE_DIR / "initial_conditions"
+
 
 # Set a default GPU that's large enough to work with any of the published models
 # available to the ai-models package.
