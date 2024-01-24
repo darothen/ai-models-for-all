@@ -17,6 +17,64 @@ logger = config.get_logger(__name__, add_handler=False)
     image=stub.image,
     secret=config.ENV_SECRETS,
     network_file_systems={str(config.CACHE_DIR): volume},
+    timeout=300,
+)
+def prepare_gfs_analysis(
+    model_name: str = "panguweather",
+    model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
+):
+    """Retrieve and prepare initial conditions from the GFS/GDAS to run with an AI model.
+
+    Parameters
+    ----------
+    model_name : str
+        Short name for the model to run; must be one of ['panguweather', 'fourcastnet_v2',
+        'graphcast']. Defaults to 'panguweather'.
+    model_init : datetime.datetime
+        Target initialization time or model epoch to fetch.
+
+    """
+    from . import gfs
+
+    logger.info(f"Preparing GFS/GDAS initial conditions for {model_name} model run...")
+
+    gdas_base_pth = config.INIT_CONDITIONS_DIR / f"{model_init:%Y%m%d%H%M}"
+    raw_gdas_fn = "gdas.raw.grib"
+    proc_gdas_fn = "gdas.proc.grib"
+
+    service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
+    gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
+        service_account_info
+    )
+    source_blob_name = gfs.make_gfs_ics_blob_name(model_init)
+    logger.info(
+        f"Attempting to download GFS/GDAS blob gs://{gfs.GFS_BUCKET}/{source_blob_name}..."
+    )
+    gcs_handler.download_blob(
+        gfs.GFS_BUCKET, source_blob_name, gdas_base_pth / raw_gdas_fn
+    )
+
+    # Sanity check to make sure we were able to download the GDAS file.
+    if not (gdas_base_pth / raw_gdas_fn).exists():
+        raise RuntimeError(f"Failed to download GFS/GDAS blob.")
+
+    # Run subsetting
+    subset_grbs = gfs.process_gdas_grib(gdas_base_pth / raw_gdas_fn)
+    with open(gdas_base_pth / proc_gdas_fn, "wb") as f:
+        for grb in subset_grbs:
+            msg = grb.tostring()
+            f.write(msg)
+
+    # Sanity check to make sure that we wrote out the processed GDAS file.
+    if not (gdas_base_pth / proc_gdas_fn).exists():
+        raise RuntimeError(f"Failed to produce subset GFS/GDAS GRIB.")
+
+
+@stub.function(
+    image=stub.image,
+    secret=config.ENV_SECRETS,
+    network_file_systems={str(config.CACHE_DIR): volume},
+    # TODO: remove GPU resource as it's not needed here.
     gpu="T4",
     timeout=60,
     allow_cross_region_volumes=True,

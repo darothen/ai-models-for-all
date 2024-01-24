@@ -7,7 +7,7 @@ from collections import Sequence, namedtuple
 
 import pygrib
 
-from . import config, gcs
+from . import config
 
 logger = config.get_logger(__name__)
 
