@@ -43,10 +43,18 @@ def validate_env():
     assert os.environ.get("GCS_BUCKET_NAME", "") != "YOUR_BUCKET_NAME"
 
 
-def make_output_path(model_name: str, init_datetime: datetime.datetime) -> pathlib.Path:
+def make_output_path(
+    model_name: str, init_datetime: datetime.datetime, use_gfs: bool
+) -> pathlib.Path:
     """Create a full path for writing a model output GRIB file."""
-    filename = f"{model_name}.{init_datetime:%Y%m%d%H%M}.grib"
+    src = "gfs" if use_gfs else "era5"
+    filename = f"{model_name}.{src}.{init_datetime:%Y%m%d%H%M}.grib"
     return OUTPUT_ROOT_DIR / filename
+
+
+def make_gfs_template_path(model_name: str) -> pathlib.Path:
+    """Create a expected path where GFS/GDAS -> ERA-5 template should exist."""
+    return AI_MODEL_ASSETS_DIR / f"{model_name}.input-template.grib2"
 
 
 def get_logger(

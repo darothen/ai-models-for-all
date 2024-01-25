@@ -19,6 +19,19 @@ logger = config.get_logger(__name__, add_handler=False)
     network_file_systems={str(config.CACHE_DIR): volume},
     timeout=300,
 )
+def check_proc(pth: pathlib.Path):
+    if not pth.exists():
+        raise RuntimeError(f"File {pth} does not exist.")
+    size = pth.stat().st_size / (2**20)
+    logger.info(f"File {pth} is size {size} MB.")
+
+
+@stub.function(
+    image=stub.image,
+    secret=config.ENV_SECRETS,
+    network_file_systems={str(config.CACHE_DIR): volume},
+    timeout=300,
+)
 def prepare_gfs_analysis(
     model_name: str = "panguweather",
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
@@ -41,7 +54,7 @@ def prepare_gfs_analysis(
 
     logger.info(f"Preparing GFS/GDAS initial conditions for {model_name} model run...")
 
-    gdas_base_pth = config.INIT_CONDITIONS_DIR / f"{model_init:%Y%m%d%H%M}"
+    gdas_base_pth = gfs.make_gfs_base_pth(model_init)
     gdas_base_pth.mkdir(parents=True, exist_ok=True)
     raw_gdas_fn = "gdas.raw.grib"
     proc_gdas_fn = "gdas.proc.grib"
@@ -74,7 +87,8 @@ def prepare_gfs_analysis(
     logger.info(f"Subsetting GFS/GDAS data...")
     subset_grbs = gfs.process_gdas_grib(gdas_base_pth / raw_gdas_fn)
     with open(gdas_base_pth / proc_gdas_fn, "wb") as f:
-        for grb in subset_grbs:
+        for i, grb in enumerate(subset_grbs):
+            logger.info(f"({i}) {grb.shortName} {grb.typeOfLevel}={grb.level}")
             msg = grb.tostring()
             f.write(msg)
 
@@ -175,6 +189,7 @@ class AIModel:
         model_name: str = "panguweather",
         model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
         lead_time: int = 12,
+        use_gfs: bool = False,
     ) -> None:
         self.model_name = model_name
         self.model_init = model_init
@@ -192,17 +207,30 @@ class AIModel:
         else:
             self.lead_time = lead_time
 
-        self.out_pth = config.make_output_path(model_name, model_init)
+        self.out_pth = config.make_output_path(model_name, model_init, use_gfs)
         self.out_pth.parent.mkdir(parents=True, exist_ok=True)
+
+        self.use_gfs = use_gfs
 
     def __enter__(self):
         logger.info(f"   Model: {self.model_name}")
         logger.info(f"   Run initialization datetime: {self.model_init}")
         logger.info(f"   Forecast lead time: {self.lead_time}")
         logger.info(f"   Model output path: {str(self.out_pth)}")
+        logger.info(
+            f"   Initial conditions source: {'gfs' if self.use_gfs else 'era5'}"
+        )
         logger.info("Running model initialization / staging...")
+        if self.use_gfs:
+            self.init_model = self._init_model_for_gfs()
+        else:
+            self.init_model = self._init_model_for_era5()
+        logger.info("... done! Model is initialized and ready to run.")
+
+    def _init_model_for_era5(self):
+        """Set up the model for running with ERA-5 initial conditions."""
         model_class = ai_models_shim.get_model_class(self.model_name)
-        self.init_model = model_class(
+        return model_class(
             # Necessary arguments to instantiate a Model object
             input="cds",
             output="file",
@@ -229,10 +257,49 @@ class AIModel:
             # output NetCDF files.
             debug=False,
         )
-        logger.info("... done! Model is initialized and ready to run.")
+
+    def _init_model_for_gfs(self):
+        """Set up the model for running with GFS/GDAS initial conditions."""
+        from . import gfs
+
+        model_class = ai_models_shim.get_model_class(self.model_name)
+
+        # Create expected path for processed initial conditions, and check that it's
+        # available for us to consume.
+        gdas_base_pth = gfs.make_gfs_base_pth(self.model_init)
+        gdas_proc_pth = gdas_base_pth / "gdas.proc.grib"
+        logger.info(f"Reading GFS/GDAS initial conditions from {gdas_proc_pth}.")
+        if not gdas_proc_pth.exists():
+            raise RuntimeError(
+                f"Expected processed GFS/GDAS initial conditions file not found at"
+                f" {gdas_proc_pth}."
+            )
+
+        return model_class(
+            output="file",
+            download_assets=False,
+            assets=config.AI_MODEL_ASSETS_DIR,
+            date=int(self.model_init.strftime("%Y%m%d")),
+            time=self.model_init.hour,
+            lead_time=self.lead_time,
+            path=str(self.out_pth),
+            metadata={},
+            model_args={},
+            assets_sub_directory=None,
+            staging_dates=None,
+            archive_requests=False,
+            only_gpu=True,
+            debug=False,
+            # The only changes we need to make are how we specify the model input
+            # data. We'll use the GFS/GDAS data that we've already prepared - although
+            # here we assume the data is available. We can add a sanity check above.
+            input="file",
+            file=str(gdas_proc_pth),
+        )
 
     @modal.method()
     def run_model(self) -> None:
+        logger.info("Invoking AIModel.run_model()...")
         self.init_model.run()
 
 
@@ -242,6 +309,8 @@ class AIModel:
 # that it can be called a cheaper, non-GPU instance and avoid wasting cycles outside
 # of model inference on such a more expensive machine.
 def _maybe_download_assets(model_name: str) -> None:
+    import climetlab as cml
+    import numpy as np
     from multiurl import download
 
     logger.info(f"Maybe retrieving assets for model {model_name}...")
@@ -272,6 +341,40 @@ def _maybe_download_assets(model_name: str) -> None:
         logger.info("   No assets need to be downloaded.")
     logger.info("... done retrieving assets.")
 
+    # Generate templates for re-mapping GFS/GDAS data to the intended ERA-5
+    # format that the model consumes from the CDS API.
+    if model_name != "panguweather":
+        return
+    template_pth = config.make_gfs_template_path(model_name)
+    if not template_pth.exists():
+        logger.info(f"Generating GFS/GDAS -> ERA-5 data templates at {template_pth}...")
+        model = model_class(
+            input="cds",
+            output="file",
+            download_assets=False,
+            assets=".",
+            date=20231201,
+            time=0,
+            lead_time=6,
+            path="_stub.grib2",
+            metadata={},
+            model_args={},
+            assets_sub_directory=None,
+            staging_dates=None,
+            archive_requests=False,
+            only_gpu=False,
+            debug=False,
+        )
+        logger.info("Processing GRIB messages and preparing outputs.")
+        with cml.new_grib_output(str(template_pth)) as f:
+            for template in model.input.all_fields:
+                f.write(np.zeros_like(template.shape), template=template)
+        logger.info("... done.")
+    else:
+        logger.info(
+            f"GFS/GDAS -> ERA-5 date templates already exist at {template_pth}."
+        )
+
 
 @stub.function(
     image=stub.image,
@@ -296,7 +399,11 @@ def generate_forecast(
     # Pre-emptively try to download assets from our cheaper CPU-only function, so that
     # we don't waste time on the GPU machine.
     _maybe_download_assets(model_name)
-    ai_model = AIModel(model_name, model_init, lead_time)
+    # If necessary, download and prepare GFS initial conditions. Again, don't waste time
+    # with a GPU process for this.
+    if use_gfs:
+        prepare_gfs_analysis.remote(model_name, model_init)
+    ai_model = AIModel(model_name, model_init, lead_time, use_gfs)
 
     logger.info("Generating forecast...")
     ai_model.run_model.remote()
@@ -385,3 +492,9 @@ def main(
             use_gfs=use_gfs,
         )
     # prepare_gfs_analysis.remote(model_name, model_init, force=True)
+    # from . import gfs
+
+    # gdas_base_pth = gfs.make_gfs_base_pth(model_init)
+    # for fn in ["gdas.raw.grib", "gdas.proc.grib"]:
+    #     gdas_pth = gdas_base_pth / fn
+    #     check_proc.remote(gdas_pth)

@@ -61,6 +61,17 @@ def make_gfs_ics_blob_name(model_epoch: datetime.datetime) -> str:
     )
 
 
+def make_gfs_base_pth(model_epoch: datetime.datetime) -> pathlib.Path:
+    """Generate the local path for a GFS initial conditions file.
+
+    Parameters
+    ----------
+    model_epoch : datetime.datetime
+        The model initialization time.
+    """
+    return config.INIT_CONDITIONS_DIR / f"{model_epoch:%Y%m%d%H%M}"
+
+
 def process_gdas_grib(gdas_pth: pathlib.Path) -> Sequence[GrbMessage]:
     """Process a GDAS GRIB file to prepare an input for an AI NWP forecast.
 
