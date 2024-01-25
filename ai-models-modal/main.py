@@ -22,19 +22,6 @@ logger = config.get_logger(__name__, add_handler=False)
     network_file_systems={str(config.CACHE_DIR): volume},
     timeout=300,
 )
-def check_proc(pth: pathlib.Path):
-    if not pth.exists():
-        raise RuntimeError(f"File {pth} does not exist.")
-    size = pth.stat().st_size / (2**20)
-    logger.info(f"File {pth} is size {size} MB.")
-
-
-@stub.function(
-    image=stub.image,
-    secret=config.ENV_SECRETS,
-    network_file_systems={str(config.CACHE_DIR): volume},
-    timeout=300,
-)
 def prepare_gfs_analysis(
     model_name: str = "panguweather",
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
@@ -61,9 +48,10 @@ def prepare_gfs_analysis(
     gdas_base_pth.mkdir(parents=True, exist_ok=True)
     raw_gdas_fn = "gdas.raw.grib"
     proc_gdas_fn = "gdas.proc.grib"
+    final_proc_gdas_pth = gdas_base_pth / proc_gdas_fn
 
     # Short-circuit - don't waste our time if file already exists.
-    if (gdas_base_pth / proc_gdas_fn).exists() and not force:
+    if final_proc_gdas_pth.exists() and not force:
         logger.info(
             f"Found existing processed GFS/GDAS file {gdas_base_pth / proc_gdas_fn};"
             " skipping download and processing."
@@ -81,7 +69,7 @@ def prepare_gfs_analysis(
     gcs_handler.download_blob(gfs.GFS_BUCKET, source_blob_name, raw_gdas_fn)
 
     # Sanity check to make sure we were able to download the GDAS file.
-    if not (gdas_base_pth / raw_gdas_fn).exists():
+    if not pathlib.Path(raw_gdas_fn).exists():
         raise RuntimeError("Failed to download GFS/GDAS blob.")
 
     # Run subsetting
@@ -105,7 +93,6 @@ def prepare_gfs_analysis(
         ):
             msg = grb.tostring()
             f.write(msg)
-    final_proc_gdas_pth = gdas_base_pth / proc_gdas_fn
     logger.info(
         "Copying processed GFS/GDAS file to cache at %s...",
         final_proc_gdas_pth,
