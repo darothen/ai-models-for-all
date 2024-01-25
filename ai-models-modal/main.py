@@ -442,24 +442,89 @@ def generate_forecast(
         )
 
 
+@stub.function(
+    image=stub.image,
+    secret=config.ENV_SECRETS,
+    network_file_systems={str(config.CACHE_DIR): volume},
+    timeout=7_200,
+    allow_cross_region_volumes=True,
+)
+def make_model_era5_template(model_name: str):
+    """Generate a template GRIB file corresponding to the ERA-5 inputs for a given
+    AI model."""
+    import climetlab as cml
+    import numpy as np
+
+    bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
+    service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
+    gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
+        service_account_info
+    )
+
+    model_class = ai_models_shim.get_model_class(model_name)
+    model = model_class(  # noqa: F811
+        # Necessary arguments to instantiate a Model object
+        input="cds",
+        output="file",
+        download_assets=False,
+        assets=config.AI_MODEL_ASSETS_DIR,
+        date=20240101,
+        time=0,
+        lead_time=6,
+        path="_stub.grib2",
+        metadata={},
+        model_args={},
+        assets_sub_directory=None,
+        staging_dates=None,
+        archive_requests=False,
+        only_gpu=False,
+        debug=True,
+    )
+
+    out_fn = f"{model_name}.input-template.grib2"
+    with cml.new_grib_output(out_fn) as f:
+        for template in model.input.all_fields:
+            f.write(np.zeros_like(template.shape), template=template)
+
+    logger.info("Uploading to gs://%s/%s", bucket_name, out_fn)
+    gcs_handler.upload_blob(
+        bucket_name,
+        out_fn,
+        out_fn,
+    )
+    logger.info("Checking that upload was successful...")
+    target_blob = gcs_handler.client.bucket(bucket_name).blob(out_fn)
+    if target_blob.exists():
+        logger.info("   Success!")
+    else:
+        logger.info(
+            "   Did not find expected blob %s in GCS bucket gs://%s.",
+            out_fn,
+            bucket_name,
+        )
+
+
 @stub.local_entrypoint()
 def main(
     model_name: str = "panguweather",
     lead_time: int = 12,
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
     use_gfs: bool = False,
-    run_checks: bool = True,
-    run_forecast: bool = True,
+    make_template: bool = False,
+    run_checks: bool = False,
+    run_forecast: bool = False,
 ):
     """Entrypoint for triggering a remote ai-models weather forecast run.
 
     Parameters:
         model: short name for the model to run; must be one of ['panguweather',
-            'fourcastnet_v2', 'graphcast']. Defaults to 'panguweather'.
+            'fourcastnetv2-small', 'graphcast']. Defaults to 'panguweather'.
         lead_time: number of hours to forecast into the future. Defaults to 12.
         model_init: datetime to use when initializing the model. Defaults to
             2023-07-01T00:00.
         use_gfs: use GFS/GDAS initial conditions instead of the default ERA-5
+        make_template: generate a template GRIB file corresponding to the ERA-5 inputs
+            for a given model.
         run_checks: enable call to remote check_assets() for triaging the application
             runtime environment.
         run_forecast: enable call to remote generate_forecast() for running the actual
@@ -478,6 +543,8 @@ def main(
     if use_gfs and (model_name != "panguweather"):
         raise ValueError("Can only use GFS initial conditions with PanguWeather model.")
 
+    if make_template:
+        make_model_era5_template.remote(model_name)
     if run_checks:
         check_assets.remote()
     if run_forecast:

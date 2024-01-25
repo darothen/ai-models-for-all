@@ -5,6 +5,7 @@ from importlib.metadata import EntryPoint
 from typing import Type
 
 import ai_models
+from ai_models import model  # noqa: F401 - needed for type annotations
 
 AIModelType = Type[ai_models.model.Model]
 
