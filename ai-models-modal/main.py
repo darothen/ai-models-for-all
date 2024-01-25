@@ -343,33 +343,28 @@ def _maybe_download_assets(model_name: str) -> None:
         return
     template_pth = config.make_gfs_template_path(model_name)
     if not template_pth.exists():
-        logger.info(f"Generating GFS/GDAS -> ERA-5 data template at {template_pth}...")
-        model = model_class(
-            input="cds",
-            output="file",
-            download_assets=False,
-            assets=".",
-            date=20231201,
-            time=0,
-            lead_time=6,
-            path="_stub.grib2",
-            metadata={},
-            model_args={},
-            assets_sub_directory=None,
-            staging_dates=None,
-            archive_requests=False,
-            only_gpu=False,
-            debug=False,
+        # Two options: we've saved it to a bucket (so just download it), or we need
+        # to generate it from scratch.
+        bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
+        service_account_info = gcs.get_service_account_json("GCS_SERVICE_ACCOUNT_INFO")
+        gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
+            service_account_info
         )
-        logger.info("Processing GRIB messages and preparing outputs.")
-        with cml.new_grib_output(str(template_pth)) as f:
-            for template in model.input.all_fields:
-                f.write(np.zeros_like(template.shape), template=template)
-        logger.info("... done.")
-    else:
+        template_fn = template_pth.name
+        target_blob = gcs_handler.client.bucket(bucket_name).blob(template_fn)
+
+        # If the template doesn't exist, call our helper routine that forcibly
+        # generates one, for us. Regardless, download from GCS to our local cache
+        # afterwards.
+        if not target_blob.exists():
+            make_model_era5_template(model_name)
+
         logger.info(
-            f"GFS/GDAS -> ERA-5 data templates already exist at {template_pth}."
+            "Downloading pre-computed template from gs://%s/%s",
+            bucket_name,
+            template_fn,
         )
+        gcs.download_blob(bucket_name, template_fn, template_pth)
 
 
 @stub.function(
@@ -539,9 +534,11 @@ def main(
         )
 
     # Safe-guard against using unsupported GFS initial conditions - at the moment, we
-    # have only implemented this for Pangu
-    if use_gfs and (model_name != "panguweather"):
-        raise ValueError("Can only use GFS initial conditions with PanguWeather model.")
+    # have only implemented this for Pangu and FCN
+    if use_gfs and (model_name == "graphcast"):
+        raise ValueError(
+            "Cannot use GFS initial conditions with GraphCast model (yet)."
+        )
 
     if make_template:
         make_model_era5_template.remote(model_name)
