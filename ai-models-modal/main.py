@@ -47,7 +47,7 @@ def prepare_gfs_analysis(
     gdas_base_pth = gfs.make_gfs_base_pth(model_init)
     gdas_base_pth.mkdir(parents=True, exist_ok=True)
     raw_gdas_fn = "gdas.raw.grib"
-    proc_gdas_fn = "gdas.proc.grib"
+    proc_gdas_fn = f"gdas.proc-{model_name}.grib"
     final_proc_gdas_pth = gdas_base_pth / proc_gdas_fn
 
     # Short-circuit - don't waste our time if file already exists.
@@ -261,8 +261,8 @@ class AIModel:
         # Create expected path for processed initial conditions, and check that it's
         # available for us to consume.
         gdas_base_pth = gfs.make_gfs_base_pth(self.model_init)
-        gdas_proc_fn = "gdas.proc.grib"
-        gdas_proc_pth = gdas_base_pth / "gdas.proc.grib"
+        gdas_proc_fn = f"gdas.proc-{self.model_name}.grib"
+        gdas_proc_pth = gdas_base_pth / gdas_proc_fn
         if not gdas_proc_pth.exists():
             raise RuntimeError(
                 f"Expected processed GFS/GDAS initial conditions file not found at"
@@ -305,8 +305,6 @@ class AIModel:
 # that it can be called a cheaper, non-GPU instance and avoid wasting cycles outside
 # of model inference on such a more expensive machine.
 def _maybe_download_assets(model_name: str) -> None:
-    import climetlab as cml
-    import numpy as np
     from multiurl import download
 
     logger.info(f"Maybe retrieving assets for model {model_name}...")
@@ -339,10 +337,12 @@ def _maybe_download_assets(model_name: str) -> None:
 
     # Generate templates for re-mapping GFS/GDAS data to the intended ERA-5
     # format that the model consumes from the CDS API.
-    if model_name != "panguweather":
+    if model_name not in ["panguweather", "fourcastnetv2-small"]:
         return
     template_pth = config.make_gfs_template_path(model_name)
+    logger.info("Checking for GFS/GDAS -> ERA-5 template at %s", template_pth)
     if not template_pth.exists():
+        logger.info("%s did not exist.", template_pth)
         # Two options: we've saved it to a bucket (so just download it), or we need
         # to generate it from scratch.
         bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
@@ -356,7 +356,11 @@ def _maybe_download_assets(model_name: str) -> None:
         # If the template doesn't exist, call our helper routine that forcibly
         # generates one, for us. Regardless, download from GCS to our local cache
         # afterwards.
+        logger.info(
+            "Checking for template in GCS bucket gs://%s/%s", bucket_name, template_fn
+        )
         if not target_blob.exists():
+            logger.info("  Template not found; generating from scratch.")
             make_model_era5_template(model_name)
 
         logger.info(
@@ -364,7 +368,7 @@ def _maybe_download_assets(model_name: str) -> None:
             bucket_name,
             template_fn,
         )
-        gcs.download_blob(bucket_name, template_fn, template_pth)
+        gcs_handler.download_blob(bucket_name, template_fn, template_pth)
 
 
 @stub.function(

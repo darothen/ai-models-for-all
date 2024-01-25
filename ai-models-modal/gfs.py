@@ -38,9 +38,18 @@ mappers = {
     "10v": grib_mapper(
         "10v", "10v", identity, {"typeOfLevel": "heightAboveGround", "level": 10}
     ),  # 10 meter V wind component
+    "100u": grib_mapper(
+        "100u", "100u", identity, {"typeOfLevel": "heightAboveGround", "level": 100}
+    ),  # 100 meter U wind component
+    "100v": grib_mapper(
+        "100v", "100v", identity, {"typeOfLevel": "heightAboveGround", "level": 100}
+    ),  # 100 meter V wind component
     "2t": grib_mapper(
         "2t", "2t", identity, {"typeOfLevel": "heightAboveGround", "level": 2}
     ),  # 2 meter temperature
+    "tcwv": grib_mapper(
+        "pwat", "tcwv", identity, {"typeOfLevel": "atmosphereSingleLayer", "level": 0}
+    ),  # Total column water vapor, taken from GFS precipitable water
 }
 
 # NOTE: Would prefer this to be a TypeAlias (https://peps.python.org/pep-0613/)
