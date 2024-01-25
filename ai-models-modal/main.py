@@ -2,9 +2,12 @@
 import datetime
 import os
 import pathlib
+import shutil
 
 import modal
 from ai_models import model
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from . import ai_models_shim, config, gcs
 from .app import stub, volume
@@ -75,40 +78,44 @@ def prepare_gfs_analysis(
     logger.info(
         f"Attempting to download GFS/GDAS blob gs://{gfs.GFS_BUCKET}/{source_blob_name}..."
     )
-    gcs_handler.download_blob(
-        gfs.GFS_BUCKET, source_blob_name, gdas_base_pth / raw_gdas_fn
-    )
+    gcs_handler.download_blob(gfs.GFS_BUCKET, source_blob_name, raw_gdas_fn)
 
     # Sanity check to make sure we were able to download the GDAS file.
     if not (gdas_base_pth / raw_gdas_fn).exists():
-        raise RuntimeError(f"Failed to download GFS/GDAS blob.")
+        raise RuntimeError("Failed to download GFS/GDAS blob.")
 
     # Run subsetting
-    logger.info(f"Subsetting GFS/GDAS data...")
-    subset_grbs = gfs.process_gdas_grib(gdas_base_pth / raw_gdas_fn)
-    with open(gdas_base_pth / proc_gdas_fn, "wb") as f:
-        for i, grb in enumerate(subset_grbs):
-            logger.info(f"({i}) {grb.shortName} {grb.typeOfLevel}={grb.level}")
+    logger.info("Subsetting GFS/GDAS data...")
+    template_pth = config.make_gfs_template_path(model_name)
+    if not template_pth.exists():
+        raise ValueError(
+            f"Expected to find GFS/GDAS -> ERA-5 template at {template_pth}, but file does not exist."
+        )
+    subset_grbs = gfs.process_gdas_grib(template_pth, raw_gdas_fn)
+    with open(proc_gdas_fn, "wb") as f, logging_redirect_tqdm(
+        loggers=[
+            logger,
+        ]
+    ):
+        for grb in tqdm(
+            subset_grbs,
+            unit="msg",
+            total=len(subset_grbs),
+            desc="GRIB messages",
+        ):
             msg = grb.tostring()
             f.write(msg)
+    final_proc_gdas_pth = gdas_base_pth / proc_gdas_fn
+    logger.info(
+        "Copying processed GFS/GDAS file to cache at %s...",
+        final_proc_gdas_pth,
+    )
+    shutil.copy(proc_gdas_fn, final_proc_gdas_pth)
+    logger.info("... done.")
 
     # Sanity check to make sure that we wrote out the processed GDAS file.
     if not (gdas_base_pth / proc_gdas_fn).exists():
-        raise RuntimeError(f"Failed to produce subset GFS/GDAS GRIB.")
-
-    # Clean up
-    logger.info("Cleaning up raw files...")
-    for i, fn in enumerate(
-        [
-            (gdas_base_pth / raw_gdas_fn),
-        ],
-        1,
-    ):
-        logger.info(f"({i}) {fn}")
-        fn.unlink()
-
-    logger.info("Cleaning up raw files...")
-    logger.info("done!")
+        raise RuntimeError("Failed to produce subset GFS/GDAS GRIB.")
 
 
 @stub.function(
@@ -267,13 +274,15 @@ class AIModel:
         # Create expected path for processed initial conditions, and check that it's
         # available for us to consume.
         gdas_base_pth = gfs.make_gfs_base_pth(self.model_init)
+        gdas_proc_fn = "gdas.proc.grib"
         gdas_proc_pth = gdas_base_pth / "gdas.proc.grib"
-        logger.info(f"Reading GFS/GDAS initial conditions from {gdas_proc_pth}.")
         if not gdas_proc_pth.exists():
             raise RuntimeError(
                 f"Expected processed GFS/GDAS initial conditions file not found at"
-                f" {gdas_proc_pth}."
+                f" {gdas_proc_fn}."
             )
+        shutil.copy(gdas_proc_pth, gdas_proc_fn)
+        logger.info(f"Reading GFS/GDAS initial conditions from {gdas_proc_fn}.")
 
         return model_class(
             output="file",
@@ -294,7 +303,7 @@ class AIModel:
             # data. We'll use the GFS/GDAS data that we've already prepared - although
             # here we assume the data is available. We can add a sanity check above.
             input="file",
-            file=str(gdas_proc_pth),
+            file=str(gdas_proc_fn),
         )
 
     @modal.method()
@@ -347,7 +356,7 @@ def _maybe_download_assets(model_name: str) -> None:
         return
     template_pth = config.make_gfs_template_path(model_name)
     if not template_pth.exists():
-        logger.info(f"Generating GFS/GDAS -> ERA-5 data templates at {template_pth}...")
+        logger.info(f"Generating GFS/GDAS -> ERA-5 data template at {template_pth}...")
         model = model_class(
             input="cds",
             output="file",
@@ -372,7 +381,7 @@ def _maybe_download_assets(model_name: str) -> None:
         logger.info("... done.")
     else:
         logger.info(
-            f"GFS/GDAS -> ERA-5 date templates already exist at {template_pth}."
+            f"GFS/GDAS -> ERA-5 data templates already exist at {template_pth}."
         )
 
 
@@ -491,10 +500,3 @@ def main(
             lead_time=lead_time,
             use_gfs=use_gfs,
         )
-    # prepare_gfs_analysis.remote(model_name, model_init, force=True)
-    # from . import gfs
-
-    # gdas_base_pth = gfs.make_gfs_base_pth(model_init)
-    # for fn in ["gdas.raw.grib", "gdas.proc.grib"]:
-    #     gdas_pth = gdas_base_pth / fn
-    #     check_proc.remote(gdas_pth)
