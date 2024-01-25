@@ -55,9 +55,9 @@ GFS_BUCKET = "global-forecast-system"
 def make_gfs_ics_blob_name(model_epoch: datetime.datetime) -> str:
     """Generate the blob name for a GFS initial conditions file.
 
-    We specifically target the GDAS 0-hour atmosphere analysis, as this has a
-    comprehensive set of outputs which we can use to cull the data we need to
-    initialize an AI NWP forecast.
+    We specifically target the GFS 0-hour forecast; in practice this shouldn't
+    very much from the GDAS analysis (or GFS ANL file), but it has field names
+    highly consistent with the ERA-5 metadata, for the most part.
 
     Parameters
     ----------
@@ -69,7 +69,7 @@ def make_gfs_ics_blob_name(model_epoch: datetime.datetime) -> str:
             f"gfs.{model_epoch:%Y%m%d}",
             f"{model_epoch:%H}",
             "atmos",
-            f"gfs.t{model_epoch:%H}z.pgrb2.0p25.anl",
+            f"gfs.t{model_epoch:%H}z.pgrb2.0p25.f000",
         ]
     )
 
