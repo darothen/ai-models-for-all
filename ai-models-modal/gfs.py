@@ -66,10 +66,10 @@ def make_gfs_ics_blob_name(model_epoch: datetime.datetime) -> str:
     """
     return "/".join(
         [
-            f"gdas.{model_epoch:%Y%m%d}",
+            f"gfs.{model_epoch:%Y%m%d}",
             f"{model_epoch:%H}",
             "atmos",
-            f"gdas.t{model_epoch:%H}z.pgrb2.0p25.f000",
+            f"gfs.t{model_epoch:%H}z.pgrb2.0p25.anl",
         ]
     )
 
