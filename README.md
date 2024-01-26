@@ -6,16 +6,14 @@ historical re-forecasts using either [PanguWeather](https://www.nature.com/artic
 [FourCastNet](https://arxiv.org/abs/2202.11214), or [GraphCast](https://www.science.org/doi/10.1126/science.adi2336),
 and save the outputs to their own cloud storage provider for further use.
 
-The initial release of this application is fully-featured, but it has a few limitations:
+The initial release of this application is fully-featured, with some limitations:
 
 - We only provide one storage adapter, for Google Cloud Storage. This can be generalized
   to support S3, Azure, or any other provider in the future.
-- We only enable access to the CDS-based archive of ERA-5 data to initialize the
-  models. To generate pseudo-operational forecasts, users should instead use the MARS
-  API, which offers access to very recent IFS analyses. However, given the licensing
-  restrictions of the AI models (PanguWeather and GraphCast are **forbidden** from being
-  used in commercial applications) and the cost/inaccessibility for most users, we defer
-  implementation of MARS for now.
+- By default, users may initialize a forecast from the CDS-based ERA-5 archive; we also
+  the option to initialize from a GFS forecast, retrieved from NOAA's archive of these
+  products on Google Cloud Storage. We do not provide a mechanism to initialize with IFS
+  operational forecasts from MARS.
 - The current application only runs on [Modal](https://www.modal.com); in the future, it
   would be great to port this to other serverless platforms, re-using as much of the
   core implementation as possible.
@@ -61,10 +59,11 @@ and may break or fail unexpectedly during normal use.
 4. Navigate to the repository on-disk and execute the command,
 
    ```shell
-   $ modal run ai-models-modal.main [\
+   $ modal run ai-models-modal.main \
          --model-name {panguweather,fourcastnetv2-small,graphcast} \
          --model-init 2023-07-01T00:00:00 \
-         --lead-time 12]
+         --lead-time 12 \
+         [--use-gfs]
    ```
 
    The first time you run this, it will take a few minutes to build an image and set up
@@ -73,6 +72,65 @@ and may break or fail unexpectedly during normal use.
    args are the defaults that will be used if you don't provide any.
 5. Download the model output from Google Cloud Storage at **gs://{GCS_BUCKET_NAME}** as
    provided via the `.env` file.
+
+## Using GFS/GDAS Initial Conditions
+
+We've implemented the ability for users to fetch initial conditions from an
+archived GFS forecast cycle. In the current implementation, we make some assumptions
+about how to process and map the GFS data to the ERA-5 data that the `ai-models`
+package typically tries to fetch:
+
+1. Some models require surface geopotential or orography fields as an input; we use the
+   GFS/GDAS version of this data instead of copying over from ERA-5. Similarly, when
+   needed we use the land-sea mask from GFS/GDAS instead of copying over ERA-5's.
+2. GraphCast is initialized with accumulated precipitation data that is not readily
+   available in the GFS/GDAS outputs; we currently approximate this very crudely by
+   looking at the 6-hr lagged precipitation rate fields from subsequent GFS/GDAS
+   analyses.
+3. The AI models are not fine-tuned (yet) on GFS data, so underlying differences in the
+   core distribution of atmospheric data between ERA-5 and GFS/GDAS could degrade
+   forecast quality in unexpected ways. Additionally, we apply the ERA-5 derived
+   Z-score or uniform distribution scaling from the parent AI models instead of providing
+   new ones for GFS/GDAS data.
+
+We use the `gfs.tHHz.pgrb2.0p25.f000` output files to pull the initial conditions. These
+are available in near-real-time (unlike the final GDAS analyses, which are lagged by
+about one model cycle). We may provide the option to use the `.anl` analysis files, too
+or hot-start initial conditions, based on feedback from the community/users. Converting
+to these files simply requires building a new set of mappers from the corresponding
+ERA-5 fields.
+
+### Running a Forecast from GFS/GDAS
+
+To tell `ai-models-for-all` to use GFS initial conditions, simply pass the command line
+flag "`--use-gfs`" and initialize a model run as usual.
+
+```shell
+$ modal run ai-models-modal.main \
+      --model-name {panguweather,fourcastnetv2-small,graphcast} \
+      --model-init 2023-07-01T00:00:00 \
+      --lead-time 12 \
+      --use-gfs \
+```
+
+The package will automatically download and process the GFS data to use for you, as well
+as archive it for future reference. Please note that the model setup process (where
+assets are downloaded and cached for future runs) may take much longer than usual as we
+also take the liberty of generating independent copies of the ERA-5 template files used
+to process the GFS data. Given the current quota restrictions on the CDS-API, this may
+take a very long time (luckily, the stub functions which perform this process are super
+cheap to run and will cost pennies even if they get stuck for several hours).
+
+For your convenience, we've saved pre-computed data templates for you to use; for a
+typical `.env` setup described below, you can locally run the following Google Cloud
+SDK command to copy over the input templates so that `ai-models-for-all` will
+automatically discover them:
+
+```shell
+$ gcloud storage cp \
+    gs://ai-models-for-all-input-templates/era5-to-gfs-f000 \
+    gs://${GCS_BUCKET_NAME}
+```
 
 ## More Detailed Setup Instructions
 
