@@ -22,11 +22,14 @@ AI_MODEL_ASSETS_DIR = CACHE_DIR / "assets"
 # for now, this is just the processed GFS/GDAS initial conditions that we produce.
 INIT_CONDITIONS_DIR = CACHE_DIR / "initial_conditions"
 
-
 # Set a default GPU that's large enough to work with any of the published models
 # available to the ai-models package.
 DEFAULT_GPU_CONFIG = modal.gpu.A100(memory=40)
 
+# Set a default date to use when fetching sample data from ERA-5 to create templates
+# for processing GFS/GDAS data; we need this because we have to sort GRIB messages by
+# time when we prepare GraphCast inputs.
+DEFAULT_GFS_TEMPLATE_MODEL_EPOCH = datetime.datetime(2024, 1, 1, 0, 0)
 
 # Read secrets locally from a ".env" file; this avoids the need to have users
 # manually set them up in Modal, with the one downside that we do have to put
@@ -34,6 +37,9 @@ DEFAULT_GPU_CONFIG = modal.gpu.A100(memory=40)
 # NOTE: Modal will try to read ".env" from the working directory, not from our
 # module directory. So keep the ".env" in the repo root.
 ENV_SECRETS = modal.Secret.from_dotenv()
+
+# Manually set all "forced" actions to run (e.g. re-processing initial conditions)
+FORCE_OVERRIDE = True
 
 
 def validate_env():

@@ -25,7 +25,7 @@ logger = config.get_logger(__name__, add_handler=False)
 def prepare_gfs_analysis(
     model_name: str = "panguweather",
     model_init: datetime.datetime = datetime.datetime(2023, 7, 1, 0, 0),
-    force: bool = False,
+    force: bool = config.FORCE_OVERRIDE,
 ):
     """Retrieve and prepare initial conditions from the GFS/GDAS to run with an AI model.
 
@@ -44,9 +44,15 @@ def prepare_gfs_analysis(
 
     logger.info(f"Preparing GFS/GDAS initial conditions for {model_name} model run...")
 
+    template_pth = config.make_gfs_template_path(model_name)
+    if not template_pth.exists():
+        raise ValueError(
+            f"Expected to find GFS/GDAS -> ERA-5 template at {template_pth}, but file does not exist."
+        )
+
     gdas_base_pth = gfs.make_gfs_base_pth(model_init)
     gdas_base_pth.mkdir(parents=True, exist_ok=True)
-    raw_gdas_fn = "gdas.raw.grib"
+
     proc_gdas_fn = f"gdas.proc-{model_name}.grib"
     final_proc_gdas_pth = gdas_base_pth / proc_gdas_fn
 
@@ -62,24 +68,96 @@ def prepare_gfs_analysis(
     gcs_handler = gcs.GoogleCloudStorageHandler.with_service_account_info(
         service_account_info
     )
-    source_blob_name = gfs.make_gfs_ics_blob_name(model_init)
-    logger.info(
-        f"Attempting to download GFS/GDAS blob gs://{gfs.GFS_BUCKET}/{source_blob_name}..."
-    )
-    gcs_handler.download_blob(gfs.GFS_BUCKET, source_blob_name, raw_gdas_fn)
 
-    # Sanity check to make sure we were able to download the GDAS file.
-    if not pathlib.Path(raw_gdas_fn).exists():
-        raise RuntimeError("Failed to download GFS/GDAS blob.")
+    # Set up the files to download with useful metadata (e.g. time lags)
+    match model_name:
+        case "panguweather" | "fourcastnetv2-small":
+            model_init_tds = [
+                datetime.timedelta(hours=0),
+            ]
+            source_blob_names = [
+                gfs.make_gfs_ics_blob_name(model_init + td) for td in model_init_tds
+            ]
+        case "graphcast":
+            # By convention, the first element is the init time, and the second element
+            # is the time-lagged input.
+            model_init_tds = [
+                datetime.timedelta(hours=0),
+                datetime.timedelta(hours=-6),
+            ]
+            source_blob_names = [
+                gfs.make_gfs_ics_blob_name(model_init + td) for td in model_init_tds
+            ]
+        case _:
+            raise ValueError(f"Encountered unknown model {model_name}")
+
+    source_fns = [blob_name.split("/")[-1] for blob_name in source_blob_names]
+    for source_blob_name, source_fn in zip(source_blob_names, source_fns):
+        logger.info(
+            f"Attempting to download GFS/GDAS blob gs://{gfs.GFS_BUCKET}/{source_blob_name}..."
+        )
+        gcs_handler.download_blob(gfs.GFS_BUCKET, source_blob_name, source_fn)
+
+        # Sanity check to make sure we were able to download the GDAS file.
+        if not pathlib.Path(source_fn).exists():
+            raise RuntimeError("Failed to download GFS/GDAS blob.")
 
     # Run subsetting
     logger.info("Subsetting GFS/GDAS data...")
-    template_pth = config.make_gfs_template_path(model_name)
-    if not template_pth.exists():
-        raise ValueError(
-            f"Expected to find GFS/GDAS -> ERA-5 template at {template_pth}, but file does not exist."
-        )
-    subset_grbs = gfs.process_gdas_grib(template_pth, raw_gdas_fn)
+    match model_name:
+        case "panguweather" | "fourcastnetv2-small":
+            # There should only be one file that we downloaded, so we can just directly
+            # use it.
+            source_fn = source_fns[0]
+            logger.info("Processing Set 1 -> %s", source_fn)
+            subset_grbs = gfs.process_gdas_grib(template_pth, source_fn)
+        case "graphcast":
+            # Use our slightly custom logic.
+            # TODO: Re-factor this to its own stand-alone function for cleanliness.
+
+            # Timedeltas for Set 1 - the 0- and 6-hr lagged messages
+            template_tds = [datetime.timedelta(hours=0), datetime.timedelta(hours=-6)]
+            # Timedeltas for Set 2 (precipitation) - due to some quirkiness in the ai-models package,
+            # we use 6- and 18-hr offsets for the 0- and 6-hr lagged messages, respectively.
+            tp_template_tds = [
+                datetime.timedelta(hours=-6),
+                datetime.timedelta(hours=-18),
+            ]
+            subset_grbs = []
+            # Set 1 - Core fields (everything but precipitation)
+            for source_fn, template_td in zip(source_fns, template_tds):
+                logger.info("Processing Set 1 (core fields) -> %s", source_fn)
+                template_dt = config.DEFAULT_GFS_TEMPLATE_MODEL_EPOCH + template_td
+                extra_template_matchers = {
+                    "dataDate": int(template_dt.strftime("%Y%m%d")),
+                    "dataTime": int(template_dt.strftime("%H%M")),
+                    "shortName": lambda x: x != "tp",
+                }
+                output_msgs = gfs.process_gdas_grib(
+                    template_pth,
+                    pathlib.Path(source_fn),
+                    extra_template_matchers=extra_template_matchers,
+                )
+                subset_grbs.extend(output_msgs)
+            # Set 2) - Precipitation; use the alternate time deltas and hardcode the precipitation
+            # field.
+            for source_fn, template_td in zip(source_fns, tp_template_tds):
+                logger.info("Processing Set 2 (precipitation) -> %s", source_fn)
+                template_dt = config.DEFAULT_GFS_TEMPLATE_MODEL_EPOCH + template_td
+                extra_template_matchers = {
+                    "dataDate": int(template_dt.strftime("%Y%m%d")),
+                    "dataTime": int(template_dt.strftime("%H%M")),
+                    "shortName": "tp",
+                }
+                output_msgs = gfs.process_gdas_grib(
+                    template_pth,
+                    pathlib.Path(source_fn),
+                    extra_template_matchers=extra_template_matchers,
+                )
+                subset_grbs.extend(output_msgs)
+        case _:
+            raise ValueError(f"Encountered unknown model {model_name}")
+
     with open(proc_gdas_fn, "wb") as f, logging_redirect_tqdm(
         loggers=[
             logger,
@@ -268,7 +346,9 @@ class AIModel:
                 f"Expected processed GFS/GDAS initial conditions file not found at"
                 f" {gdas_proc_fn}."
             )
+        logger.info("Copying processed GFS/GDAS file from cache to local...")
         shutil.copy(gdas_proc_pth, gdas_proc_fn)
+        logger.info("... done.")
         logger.info(f"Reading GFS/GDAS initial conditions from {gdas_proc_fn}.")
 
         return model_class(
@@ -335,10 +415,6 @@ def _maybe_download_assets(model_name: str) -> None:
         logger.info("   No assets need to be downloaded.")
     logger.info("... done retrieving assets.")
 
-    # Generate templates for re-mapping GFS/GDAS data to the intended ERA-5
-    # format that the model consumes from the CDS API.
-    if model_name not in ["panguweather", "fourcastnetv2-small"]:
-        return
     template_pth = config.make_gfs_template_path(model_name)
     logger.info("Checking for GFS/GDAS -> ERA-5 template at %s", template_pth)
     if not template_pth.exists():
@@ -467,8 +543,8 @@ def make_model_era5_template(model_name: str):
         output="file",
         download_assets=False,
         assets=config.AI_MODEL_ASSETS_DIR,
-        date=20240101,
-        time=0,
+        date=int(config.DEFAULT_GFS_TEMPLATE_MODEL_EPOCH.strftime("%Y%m%d")),
+        time=int(config.DEFAULT_GFS_TEMPLATE_MODEL_EPOCH.strftime("%H")),
         lead_time=6,
         path="_stub.grib2",
         metadata={},
@@ -535,13 +611,6 @@ def main(
         raise ValueError(
             f"User provided model_name '{model_name}' is not supported; must be one of"
             f" {ai_models_shim.SUPPORTED_AI_MODELS}."
-        )
-
-    # Safe-guard against using unsupported GFS initial conditions - at the moment, we
-    # have only implemented this for Pangu and FCN
-    if use_gfs and (model_name == "graphcast"):
-        raise ValueError(
-            "Cannot use GFS initial conditions with GraphCast model (yet)."
         )
 
     if make_template:
