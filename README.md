@@ -252,3 +252,29 @@ file with their credentials.
   long forecast, the GPU container should really only be running for < 20 minutes,
   which means that at today's (11-25-2023) market rates of $3.73/hr per A100 GPU, it
   should cost about a bit more than a dollar to generate a forecast, all-in.
+
+## Roadmap
+
+The following major projects are slated for Q1'24:
+
+**Operational AI Model Forecasts** - We will begin running pseudo-operational
+forecasts for all included models in early Q1 using GFS initial conditions in
+near-real-time, and disseminating the outputs in a publicly available Google
+Cloud Storage bucket (per model licensing restrictions).
+
+**Post-processing / Visualization** - We will implement some simple (optional)
+routines to post-process the default GRIB outputs into more standard ARCO formats,
+and generate a complete set of visualizations that users can review as a stand-alone
+gallery. Pending collaborations, we will try to make these available on popular
+model visualization websites (contact @darothen if you're interested in hosting).
+
+**Porting to `earth2mip`** - Although we've used ecmwf-labs/ai-models for the initial
+development, this package's extremely tight coupling with ECMWF infrastructure and
+the climetlab library pose considerable development challenges. Therefore, we aim
+to re-write this library using the NVIDIA/earth2mip framework. This is a far more
+comprehensive and extensible framework for preparing a variety of modeling and learning
+tasks related to AI-NWP, and provides access to the very large library of AI models
+NVIDIA is collecting for their model zoo. This will likely be built in a stand-alone
+package, e.g. `earth2mip-for-all`, but the goal is to provide the same accessibility
+and ease-of-use for users who simply want to run these models to create their own
+forecasts with limited engineering/infrastructure investment.
