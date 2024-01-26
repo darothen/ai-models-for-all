@@ -159,6 +159,7 @@ def grb_matches(grb: PyGribMessage, **matchers) -> PyGribMessage:
 def process_gdas_grib(
     template_pth: pathlib.Path,
     gdas_pth: pathlib.Path,
+    model_init: datetime.datetime = config.DEFAULT_GFS_TEMPLATE_MODEL_EPOCH,
     extra_template_matchers: dict = {},
 ) -> Sequence[PyGribMessage]:
     """Process a GDAS GRIB file to prepare an input for an AI NWP forecast.
@@ -169,6 +170,9 @@ def process_gdas_grib(
         The local path to the ERA-5 template GRIB file for a given model.
     gdas_pth : pathlib.Path
         The local path to the GDAS GRIB file, most likely downloaded from GCS.
+    model_init : datetime.datetime
+        The model analysis / initialization time, to be used in overwriting the
+        timestamp data borrowed from the ERA-5 template GRIB.
     extra_template_matchers : dict, optional
         Additional key-value pairs to hard-code when selecting GRB messages from
         the template; this is useful when we need to downselect some of the
@@ -187,6 +191,11 @@ def process_gdas_grib(
         for grb in grbs:
             template_grbs.append(grb)
     logger.info("... found %d GRIB messages", len(template_grbs))
+
+    time_kwargs = dict(
+        dataDate=int(model_init.strftime("%Y%m%d")),
+        dataTime=int(model_init.strftime("%H%M")),
+    )
 
     logger.info("Copying and processing GRIB messages from %s...", gdas_pth)
     with pygrib.open(str(gdas_pth)) as source_grbs, logging_redirect_tqdm(
@@ -250,5 +259,8 @@ def process_gdas_grib(
                     new_mean,
                 )
 
-    return template_grbs
+            # Overwrite the GRIB metadata with the model initialization time.
+            for key, val in time_kwargs.items():
+                grb[key] = val
+
     return template_grbs

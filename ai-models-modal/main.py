@@ -110,7 +110,7 @@ def prepare_gfs_analysis(
             # use it.
             source_fn = source_fns[0]
             logger.info("Processing Set 1 -> %s", source_fn)
-            subset_grbs = gfs.process_gdas_grib(template_pth, source_fn)
+            subset_grbs = gfs.process_gdas_grib(template_pth, source_fn, model_init)
         case "graphcast":
             # Use our slightly custom logic.
             # TODO: Re-factor this to its own stand-alone function for cleanliness.
@@ -136,6 +136,7 @@ def prepare_gfs_analysis(
                 output_msgs = gfs.process_gdas_grib(
                     template_pth,
                     pathlib.Path(source_fn),
+                    model_init,
                     extra_template_matchers=extra_template_matchers,
                 )
                 subset_grbs.extend(output_msgs)
@@ -152,6 +153,7 @@ def prepare_gfs_analysis(
                 output_msgs = gfs.process_gdas_grib(
                     template_pth,
                     pathlib.Path(source_fn),
+                    model_init,
                     extra_template_matchers=extra_template_matchers,
                 )
                 subset_grbs.extend(output_msgs)
