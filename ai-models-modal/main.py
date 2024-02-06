@@ -20,7 +20,7 @@ logger = config.get_logger(__name__, add_handler=False)
     image=stub.image,
     secrets=[config.ENV_SECRETS],
     network_file_systems={str(config.CACHE_DIR): volume},
-    timeout=80_000,
+    timeout=300,
 )
 def prepare_gfs_analysis(
     model_name: str = "panguweather",
