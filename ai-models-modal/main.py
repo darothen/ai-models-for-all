@@ -1,4 +1,5 @@
 """A Modal application for running `ai-models` weather forecasts."""
+
 import datetime
 import os
 import pathlib
@@ -116,6 +117,8 @@ def prepare_gfs_analysis(
             # TODO: Re-factor this to its own stand-alone function for cleanliness.
 
             # Timedeltas for Set 1 - the 0- and 6-hr lagged messages
+            # NOTE: these should match the deltas in model_init_tds above; ideally we should
+            # just re-use those directly.
             template_tds = [datetime.timedelta(hours=0), datetime.timedelta(hours=-6)]
             # Timedeltas for Set 2 (precipitation) - due to some quirkiness in the ai-models package,
             # we use 6- and 18-hr offsets for the 0- and 6-hr lagged messages, respectively.
@@ -136,7 +139,9 @@ def prepare_gfs_analysis(
                 output_msgs = gfs.process_gdas_grib(
                     template_pth,
                     pathlib.Path(source_fn),
-                    model_init,
+                    # Offset the model_init time by the expected timedelta so that we
+                    # appropriately encode the GRIB message timestamps.
+                    model_init + template_td,
                     extra_template_matchers=extra_template_matchers,
                 )
                 subset_grbs.extend(output_msgs)
@@ -153,17 +158,20 @@ def prepare_gfs_analysis(
                 output_msgs = gfs.process_gdas_grib(
                     template_pth,
                     pathlib.Path(source_fn),
-                    model_init,
+                    model_init + template_td,
                     extra_template_matchers=extra_template_matchers,
                 )
                 subset_grbs.extend(output_msgs)
         case _:
             raise ValueError(f"Encountered unknown model {model_name}")
 
-    with open(proc_gdas_fn, "wb") as f, logging_redirect_tqdm(
-        loggers=[
-            logger,
-        ]
+    with (
+        open(proc_gdas_fn, "wb") as f,
+        logging_redirect_tqdm(
+            loggers=[
+                logger,
+            ]
+        ),
     ):
         for grb in tqdm(
             subset_grbs,
