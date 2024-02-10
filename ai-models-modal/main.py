@@ -447,7 +447,7 @@ def _maybe_download_assets(model_name: str) -> None:
         )
         if not target_blob.exists():
             logger.info("  Template not found; generating from scratch.")
-            make_model_era5_template.remote(model_name)
+            make_model_era5_template.local(model_name)
 
         logger.info(
             "Downloading pre-computed template from gs://%s/%s",
