@@ -19,7 +19,7 @@ logger = config.get_logger(__name__, add_handler=False)
 
 @stub.function(
     image=stub.image,
-    secret=config.ENV_SECRETS,
+    secrets=[config.ENV_SECRETS],
     network_file_systems={str(config.CACHE_DIR): volume},
     timeout=300,
 )
@@ -195,7 +195,7 @@ def prepare_gfs_analysis(
 
 @stub.function(
     image=stub.image,
-    secret=config.ENV_SECRETS,
+    secrets=[config.ENV_SECRETS],
     network_file_systems={str(config.CACHE_DIR): volume},
     # gpu="T4",
     timeout=60,
@@ -258,7 +258,7 @@ def check_assets(skip_validate_env: bool = False):
 
 
 @stub.cls(
-    secret=config.ENV_SECRETS,
+    secrets=[config.ENV_SECRETS],
     gpu=config.DEFAULT_GPU_CONFIG,
     network_file_systems={str(config.CACHE_DIR): volume},
     concurrency_limit=1,
@@ -447,7 +447,7 @@ def _maybe_download_assets(model_name: str) -> None:
         )
         if not target_blob.exists():
             logger.info("  Template not found; generating from scratch.")
-            make_model_era5_template(model_name)
+            make_model_era5_template.local(model_name)
 
         logger.info(
             "Downloading pre-computed template from gs://%s/%s",
@@ -459,7 +459,7 @@ def _maybe_download_assets(model_name: str) -> None:
 
 @stub.function(
     image=stub.image,
-    secret=config.ENV_SECRETS,
+    secrets=[config.ENV_SECRETS],
     network_file_systems={str(config.CACHE_DIR): volume},
     allow_cross_region_volumes=True,
     timeout=1_800,
@@ -529,7 +529,7 @@ def generate_forecast(
 
 @stub.function(
     image=stub.image,
-    secret=config.ENV_SECRETS,
+    secrets=[config.ENV_SECRETS],
     network_file_systems={str(config.CACHE_DIR): volume},
     timeout=7_200,
     allow_cross_region_volumes=True,
