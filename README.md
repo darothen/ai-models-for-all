@@ -72,6 +72,7 @@ and may break or fail unexpectedly during normal use.
    args are the defaults that will be used if you don't provide any.
 5. Download the model output from Google Cloud Storage at **gs://{GCS_BUCKET_NAME}** as
    provided via the `.env` file.
+6. Install required dependencies onto your machine using the requirements.txt file (pip install -r requirements.txt)
 
 ## Using GFS/GDAS Initial Conditions
 
@@ -246,6 +247,8 @@ file with their credentials.
   libglib, and libtpu are missing. These should not impact the functionality of the
   current application (we've tested that all three AI models do in fact run
   and produce expected outputs).
+- You still need to install some required libraries locally. These are provided for
+  you in the requirements.txt file. Use pip install -r requirements.txt to install.
 - It should be *very* cheap to run this application; even accounting for the time it
   takes to download model assets the first time a given AI model is run, most of the
   models can produce a 10-day forecast in about 10-15 minutes. So end-to-end, for a
