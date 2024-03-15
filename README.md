@@ -223,9 +223,7 @@ save it in the same `.env` file under the name **GCS_SERVICE_ACCOUNT_INFO**.
 
 Unfortunately we can't just copy/paste - we need to "stringify" the data. You
 should probably do this in Python or your preferred programming language by
-reading in the JSON file you saved, serializing to a string, and outputting. In
-a pinch, you can copy/paste the full JSON data into a site like [this one](https://jsonformatter.org/json-stringify-online)
-and use the resulting string. Copy that output string into your `.env`.
+reading in the JSON file you saved, serializing to a string, and outputting.
 
 ### Configuring `cdsapi`
 
