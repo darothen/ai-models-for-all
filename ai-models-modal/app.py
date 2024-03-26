@@ -115,6 +115,6 @@ inference_image = (
 # Set up a storage volume for sharing model outputs between processes.
 # TODO: Explore adding a modal.Volume to cache model weights since it should be
 # much faster for loading them at runtime.
-volume = modal.NetworkFileSystem.persisted("ai-models-cache")
+volume = modal.NetworkFileSystem.from_name("ai-models-cache", create_if_missing=True)
 
 stub = modal.Stub(name="ai-models-for-all", image=inference_image)
