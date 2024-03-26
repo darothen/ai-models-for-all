@@ -6,6 +6,7 @@ import pathlib
 import shutil
 
 import modal
+from modal import enter
 from ai_models import model
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -294,7 +295,8 @@ class AIModel:
 
         self.use_gfs = use_gfs
 
-    def __enter__(self):
+    @enter()
+    def __run_on_startup__(self):
         logger.info(f"   Model: {self.model_name}")
         logger.info(f"   Run initialization datetime: {self.model_init}")
         logger.info(f"   Forecast lead time: {self.lead_time}")
